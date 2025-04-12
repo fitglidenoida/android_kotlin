@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.FitGlide" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/blue_500</item> <!-- #4285F4 -->
+        <item name="colorSecondary">@color/green_500</item> <!-- #34A853 -->
+        <item name="android:colorBackground">@color/light_gray</item> <!-- #F5F5F5 -->
+        <item name="colorSurface">@android:color/white</item>
+        <item name="android:statusBarColor">@color/blue_500</item>
+    </style>
+</resources>

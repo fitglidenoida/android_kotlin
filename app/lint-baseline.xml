@@ -1,0 +1,997 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<issues format="6" by="lint 8.8.2" type="baseline" client="gradle" dependencies="false" name="AGP (8.8.2)" variant="all" version="8.8.2">
+
+    <issue
+        id="AndroidGradlePluginVersion"
+        message="A newer version of com.android.application than 8.8.2 is available: 8.9.0"
+        errorLine1="android-gradle = &quot;8.8.2&quot;"
+        errorLine2="                 ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="5"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="AndroidGradlePluginVersion"
+        message="A newer version of com.android.application than 8.8.2 is available: 8.9.0"
+        errorLine1="android-gradle = &quot;8.8.2&quot;"
+        errorLine2="                 ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="5"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="AndroidGradlePluginVersion"
+        message="A newer version of com.android.application than 8.8.2 is available: 8.9.0"
+        errorLine1="android-gradle = &quot;8.8.2&quot;"
+        errorLine2="                 ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="5"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:core than 1.5.0 is available: 1.6.1"
+        errorLine1="core = &quot;1.5.0&quot;"
+        errorLine2="       ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="2"
+            column="8"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:core than 1.5.0 is available: 1.6.1"
+        errorLine1="core = &quot;1.5.0&quot;"
+        errorLine2="       ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="2"
+            column="8"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:core than 1.5.0 is available: 1.6.1"
+        errorLine1="core = &quot;1.5.0&quot;"
+        errorLine2="       ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="2"
+            column="8"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.android.tools:desugar_jdk_libs than 2.1.2 is available: 2.1.5"
+        errorLine1="desugar_jdk_libs = &quot;2.1.2&quot;"
+        errorLine2="                   ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="3"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.android.tools:desugar_jdk_libs than 2.1.2 is available: 2.1.5"
+        errorLine1="desugar_jdk_libs = &quot;2.1.2&quot;"
+        errorLine2="                   ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="3"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.android.tools:desugar_jdk_libs than 2.1.2 is available: 2.1.5"
+        errorLine1="desugar_jdk_libs = &quot;2.1.2&quot;"
+        errorLine2="                   ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="3"
+            column="20"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.navigation:navigation-compose than 2.8.8 is available: 2.8.9"
+        errorLine1="compose-navigation = &quot;2.8.8&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="7"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.navigation:navigation-compose than 2.8.8 is available: 2.8.9"
+        errorLine1="compose-navigation = &quot;2.8.8&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="7"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.navigation:navigation-compose than 2.8.8 is available: 2.8.9"
+        errorLine1="compose-navigation = &quot;2.8.8&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="7"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.material3:material3 than 1.2.1 is available: 1.3.1"
+        errorLine1="material3 = &quot;1.2.1&quot;  # Compatible with Compose 1.7.8"
+        errorLine2="            ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="11"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.material3:material3 than 1.2.1 is available: 1.3.1"
+        errorLine1="material3 = &quot;1.2.1&quot;  # Compatible with Compose 1.7.8"
+        errorLine2="            ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="11"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.material3:material3 than 1.2.1 is available: 1.3.1"
+        errorLine1="material3 = &quot;1.2.1&quot;  # Compatible with Compose 1.7.8"
+        errorLine2="            ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="11"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.google.android.gms:play-services-auth than 20.7.0 is available: 21.3.0"
+        errorLine1="play-services-auth = &quot;20.7.0&quot;"
+        errorLine2="                     ~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="12"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.google.android.gms:play-services-auth than 20.7.0 is available: 21.3.0"
+        errorLine1="play-services-auth = &quot;20.7.0&quot;"
+        errorLine2="                     ~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="12"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.google.android.gms:play-services-auth than 20.7.0 is available: 21.3.0"
+        errorLine1="play-services-auth = &quot;20.7.0&quot;"
+        errorLine2="                     ~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="12"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:rules than 1.5.0 is available: 1.6.1"
+        errorLine1="rules = &quot;1.5.0&quot;"
+        errorLine2="        ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="13"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:rules than 1.5.0 is available: 1.6.1"
+        errorLine1="rules = &quot;1.5.0&quot;"
+        errorLine2="        ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="13"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:rules than 1.5.0 is available: 1.6.1"
+        errorLine1="rules = &quot;1.5.0&quot;"
+        errorLine2="        ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="13"
+            column="9"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:runner than 1.5.2 is available: 1.6.2"
+        errorLine1="runner = &quot;1.5.2&quot;"
+        errorLine2="         ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="14"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:runner than 1.5.2 is available: 1.6.2"
+        errorLine1="runner = &quot;1.5.2&quot;"
+        errorLine2="         ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="14"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:runner than 1.5.2 is available: 1.6.2"
+        errorLine1="runner = &quot;1.5.2&quot;"
+        errorLine2="         ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="14"
+            column="10"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.health.connect:connect-client than 1.1.0-alpha12 is available: 1.1.0-beta01"
+        errorLine1="health-connect = &quot;1.1.0-alpha12&quot;"
+        errorLine2="                 ~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="16"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.health.connect:connect-client than 1.1.0-alpha12 is available: 1.1.0-beta01"
+        errorLine1="health-connect = &quot;1.1.0-alpha12&quot;"
+        errorLine2="                 ~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="16"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.health.connect:connect-client than 1.1.0-alpha12 is available: 1.1.0-beta01"
+        errorLine1="health-connect = &quot;1.1.0-alpha12&quot;"
+        errorLine2="                 ~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="16"
+            column="18"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:core than 1.5.0 is available: 1.6.1"
+        errorLine1="androidx-test = &quot;1.5.0&quot;"
+        errorLine2="                ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="19"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:core than 1.5.0 is available: 1.6.1"
+        errorLine1="androidx-test = &quot;1.5.0&quot;"
+        errorLine2="                ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="19"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:core than 1.5.0 is available: 1.6.1"
+        errorLine1="androidx-test = &quot;1.5.0&quot;"
+        errorLine2="                ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="19"
+            column="17"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:runner than 1.5.2 is available: 1.6.2"
+        errorLine1="androidx-test-runner = &quot;1.5.2&quot;"
+        errorLine2="                       ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="20"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:runner than 1.5.2 is available: 1.6.2"
+        errorLine1="androidx-test-runner = &quot;1.5.2&quot;"
+        errorLine2="                       ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="20"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test:runner than 1.5.2 is available: 1.6.2"
+        errorLine1="androidx-test-runner = &quot;1.5.2&quot;"
+        errorLine2="                       ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="20"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test.ext:junit than 1.1.5 is available: 1.2.1"
+        errorLine1="androidx-test-ext-junit = &quot;1.1.5&quot;"
+        errorLine2="                          ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="21"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test.ext:junit than 1.1.5 is available: 1.2.1"
+        errorLine1="androidx-test-ext-junit = &quot;1.1.5&quot;"
+        errorLine2="                          ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="21"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.test.ext:junit than 1.1.5 is available: 1.2.1"
+        errorLine1="androidx-test-ext-junit = &quot;1.1.5&quot;"
+        errorLine2="                          ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="21"
+            column="27"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of org.jetbrains.kotlinx:kotlinx-coroutines-core than 1.8.1 is available: 1.9.0"
+        errorLine1="kotlinx-coroutines = &quot;1.8.1&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="25"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of org.jetbrains.kotlinx:kotlinx-coroutines-core than 1.8.1 is available: 1.9.0"
+        errorLine1="kotlinx-coroutines = &quot;1.8.1&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="25"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of org.jetbrains.kotlinx:kotlinx-coroutines-core than 1.8.1 is available: 1.9.0"
+        errorLine1="kotlinx-coroutines = &quot;1.8.1&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="25"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.material3:material3-android than 1.2.1 is available: 1.3.1"
+        errorLine1="material3-android = &quot;1.2.1&quot;"
+        errorLine2="                    ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="26"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.material3:material3-android than 1.2.1 is available: 1.3.1"
+        errorLine1="material3-android = &quot;1.2.1&quot;"
+        errorLine2="                    ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="26"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.material3:material3-android than 1.2.1 is available: 1.3.1"
+        errorLine1="material3-android = &quot;1.2.1&quot;"
+        errorLine2="                    ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="26"
+            column="21"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.foundation:foundation-android than 1.7.2 is available: 1.7.8"
+        errorLine1="foundation-android = &quot;1.7.2&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="27"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.foundation:foundation-android than 1.7.2 is available: 1.7.8"
+        errorLine1="foundation-android = &quot;1.7.2&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="27"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.foundation:foundation-android than 1.7.2 is available: 1.7.8"
+        errorLine1="foundation-android = &quot;1.7.2&quot;"
+        errorLine2="                     ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="27"
+            column="22"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.foundation:foundation-layout-android than 1.7.2 is available: 1.7.8"
+        errorLine1="foundation-layout-android = &quot;1.7.2&quot;"
+        errorLine2="                            ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="28"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.foundation:foundation-layout-android than 1.7.2 is available: 1.7.8"
+        errorLine1="foundation-layout-android = &quot;1.7.2&quot;"
+        errorLine2="                            ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="28"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of androidx.compose.foundation:foundation-layout-android than 1.7.2 is available: 1.7.8"
+        errorLine1="foundation-layout-android = &quot;1.7.2&quot;"
+        errorLine2="                            ~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="28"
+            column="29"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.google.android.gms:play-services-auth than 20.7.0 is available: 21.3.0"
+        errorLine1="google-play-services = &quot;20.7.0&quot;"
+        errorLine2="                       ~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="29"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.google.android.gms:play-services-auth than 20.7.0 is available: 21.3.0"
+        errorLine1="google-play-services = &quot;20.7.0&quot;"
+        errorLine2="                       ~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="29"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="GradleDependency"
+        message="A newer version of com.google.android.gms:play-services-auth than 20.7.0 is available: 21.3.0"
+        errorLine1="google-play-services = &quot;20.7.0&quot;"
+        errorLine2="                       ~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="29"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:core but with different version"
+        errorLine1="androidx-core-v150 = { module = &quot;androidx.test:core&quot;, version.ref = &quot;core&quot; }"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="33"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:core but with different version"
+        errorLine1="androidx-core-v150 = { module = &quot;androidx.test:core&quot;, version.ref = &quot;core&quot; }"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="33"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:core but with different version"
+        errorLine1="androidx-core-v150 = { module = &quot;androidx.test:core&quot;, version.ref = &quot;core&quot; }"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="33"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:rules but with different version"
+        errorLine1="androidx-rules-v150 = { module = &quot;androidx.test:rules&quot;, version.ref = &quot;rules&quot; }"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="35"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:rules but with different version"
+        errorLine1="androidx-rules-v150 = { module = &quot;androidx.test:rules&quot;, version.ref = &quot;rules&quot; }"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="35"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:rules but with different version"
+        errorLine1="androidx-rules-v150 = { module = &quot;androidx.test:rules&quot;, version.ref = &quot;rules&quot; }"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="35"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:runner but with different version"
+        errorLine1="androidx-runner-v152 = { module = &quot;androidx.test:runner&quot;, version.ref = &quot;runner&quot; }"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="36"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:runner but with different version"
+        errorLine1="androidx-runner-v152 = { module = &quot;androidx.test:runner&quot;, version.ref = &quot;runner&quot; }"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="36"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:runner but with different version"
+        errorLine1="androidx-runner-v152 = { module = &quot;androidx.test:runner&quot;, version.ref = &quot;runner&quot; }"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="36"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.gms:play-services-auth but with different version"
+        errorLine1="play-services-auth = { module = &quot;com.google.android.gms:play-services-auth&quot;, version.ref = &quot;play-services-auth&quot; }"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="45"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.gms:play-services-auth but with different version"
+        errorLine1="play-services-auth = { module = &quot;com.google.android.gms:play-services-auth&quot;, version.ref = &quot;play-services-auth&quot; }"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="45"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.gms:play-services-auth but with different version"
+        errorLine1="play-services-auth = { module = &quot;com.google.android.gms:play-services-auth&quot;, version.ref = &quot;play-services-auth&quot; }"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="45"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.material:material but with different version"
+        errorLine1="material = { module = &quot;com.google.android.material:material&quot;, version.ref = &quot;material&quot; }"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="48"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.material:material but with different version"
+        errorLine1="material = { module = &quot;com.google.android.material:material&quot;, version.ref = &quot;material&quot; }"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="48"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.material:material but with different version"
+        errorLine1="material = { module = &quot;com.google.android.material:material&quot;, version.ref = &quot;material&quot; }"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="48"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:core but with different version"
+        errorLine1="androidx-test-core = { module = &quot;androidx.test:core&quot;, version.ref = &quot;androidx-test&quot; }"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="52"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:core but with different version"
+        errorLine1="androidx-test-core = { module = &quot;androidx.test:core&quot;, version.ref = &quot;androidx-test&quot; }"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="52"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:core but with different version"
+        errorLine1="androidx-test-core = { module = &quot;androidx.test:core&quot;, version.ref = &quot;androidx-test&quot; }"
+        errorLine2="                      ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="52"
+            column="23"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:runner but with different version"
+        errorLine1="androidx-test-runner = { module = &quot;androidx.test:runner&quot;, version.ref = &quot;androidx-test-runner&quot; }"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="53"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:runner but with different version"
+        errorLine1="androidx-test-runner = { module = &quot;androidx.test:runner&quot;, version.ref = &quot;androidx-test-runner&quot; }"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="53"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:runner but with different version"
+        errorLine1="androidx-test-runner = { module = &quot;androidx.test:runner&quot;, version.ref = &quot;androidx-test-runner&quot; }"
+        errorLine2="                        ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="53"
+            column="25"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:rules but with different version"
+        errorLine1="androidx-test-rules = { module = &quot;androidx.test:rules&quot;, version.ref = &quot;rules&quot; }"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="54"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:rules but with different version"
+        errorLine1="androidx-test-rules = { module = &quot;androidx.test:rules&quot;, version.ref = &quot;rules&quot; }"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="54"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies androidx.test:rules but with different version"
+        errorLine1="androidx-test-rules = { module = &quot;androidx.test:rules&quot;, version.ref = &quot;rules&quot; }"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="54"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.gms:play-services-auth but with different version"
+        errorLine1="google-play-services-auth = { module = &quot;com.google.android.gms:play-services-auth&quot;, version.ref = &quot;google-play-services&quot; }"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="62"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.gms:play-services-auth but with different version"
+        errorLine1="google-play-services-auth = { module = &quot;com.google.android.gms:play-services-auth&quot;, version.ref = &quot;google-play-services&quot; }"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="62"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.gms:play-services-auth but with different version"
+        errorLine1="google-play-services-auth = { module = &quot;com.google.android.gms:play-services-auth&quot;, version.ref = &quot;google-play-services&quot; }"
+        errorLine2="                             ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="62"
+            column="30"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.material:material but with different version"
+        errorLine1="material-components = { module = &quot;com.google.android.material:material&quot;, version.ref = &quot;material-components&quot; }"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="63"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.material:material but with different version"
+        errorLine1="material-components = { module = &quot;com.google.android.material:material&quot;, version.ref = &quot;material-components&quot; }"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="63"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="SimilarGradleDependency"
+        message="There are multiple dependencies com.google.android.material:material but with different version"
+        errorLine1="material-components = { module = &quot;com.google.android.material:material&quot;, version.ref = &quot;material-components&quot; }"
+        errorLine2="                       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="$HOME/Documents/fitglide/gradle/libs.versions.toml"
+            line="63"
+            column="24"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/com/trailblazewellness/fitglide/presentation/home/Achievements.kt"
+            line="26"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/com/trailblazewellness/fitglide/presentation/home/ChallengeLeaderboard.kt"
+            line="29"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/com/trailblazewellness/fitglide/presentation/home/MaxNudge.kt"
+            line="22"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="ModifierParameter"
+        message="Modifier parameter should be the first optional parameter"
+        errorLine1="    modifier: Modifier = Modifier"
+        errorLine2="    ~~~~~~~~">
+        <location
+            file="src/main/java/com/trailblazewellness/fitglide/presentation/home/WeightLossStories.kt"
+            line="31"
+            column="5"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.xml.backup_rules` appears to be unused"
+        errorLine1="&lt;full-backup-content>"
+        errorLine2="^">
+        <location
+            file="src/main/res/xml/backup_rules.xml"
+            line="8"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.color.orange_500` appears to be unused"
+        errorLine1="    &lt;color name=&quot;orange_500&quot;>#FFFBBC05&lt;/color> &lt;!-- Tertiary -->"
+        errorLine2="           ~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/colors.xml"
+            line="5"
+            column="12"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.xml.data_extraction_rules` appears to be unused"
+        errorLine1="&lt;data-extraction-rules>"
+        errorLine2="^">
+        <location
+            file="src/main/res/xml/data_extraction_rules.xml"
+            line="6"
+            column="1"/>
+    </issue>
+
+    <issue
+        id="UnusedResources"
+        message="The resource `R.string.google_client_id` appears to be unused"
+        errorLine1="    &lt;string name=&quot;google_client_id&quot;>535964172976-kli3cf7gfcjcmr30g95jkt4n2la6vthf.apps.googleusercontent.com&lt;/string>"
+        errorLine2="            ~~~~~~~~~~~~~~~~~~~~~~~">
+        <location
+            file="src/main/res/values/google_sign_in.xml"
+            line="3"
+            column="13"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        message="Found bitmap drawable `res/drawable/fitglide_logo_tweaked.png` in densityless folder">
+        <location
+            file="src/main/res/drawable/fitglide_logo_tweaked.png"/>
+    </issue>
+
+    <issue
+        id="IconLocation"
+        message="Found bitmap drawable `res/drawable/google_color_icon.png` in densityless folder">
+        <location
+            file="src/main/res/drawable/google_color_icon.png"/>
+    </issue>
+
+</issues>

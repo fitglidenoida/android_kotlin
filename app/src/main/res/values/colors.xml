@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="blue_500">#FF4285F4</color> <!-- Primary -->
+    <color name="green_500">#FF34A853</color> <!-- Secondary -->
+    <color name="orange_500">#FFFBBC05</color> <!-- Tertiary -->
+    <color name="light_gray">#FFF5F5F5</color> <!-- Background (light) -->
+    <color name="dark_gray">#FF121212</color> <!-- Background (dark) and onBackground (light) -->
+    <color name="dark_surface">#FF303030</color> <!-- Surface (dark) -->
+</resources>

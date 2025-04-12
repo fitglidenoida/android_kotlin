@@ -1,0 +1,87 @@
+[versions]
+annotations = "23.0.0"
+core = "1.5.0"
+desugar_jdk_libs = "2.1.2"
+hilt-android = "2.51.1"
+kotlin = "2.0.21"
+android-gradle = "8.8.2"
+compose = "1.7.8"
+compose-navigation = "2.8.8"
+activity-compose = "1.10.1"
+kotlinx-coroutines-android = "1.9.0"
+lifecycle = "2.8.7"
+material3 = "1.2.1"  # Compatible with Compose 1.7.8
+okhttp = "4.12.0"
+play-services-auth = "20.7.0"
+rules = "1.5.0"
+runner = "1.5.2"
+work = "2.10.0"
+health-connect = "1.1.0-alpha12"
+material = "1.12.0"
+compose-ui = "1.7.8"
+androidx-test = "1.5.0"
+androidx-test-runner = "1.5.2"
+androidx-test-ext-junit = "1.1.5"
+junit = "4.13.2"
+retrofit = "2.9.0"
+converter-gson = "2.9.0"
+kotlinx-coroutines = "1.8.1"
+material3-android = "1.2.1"
+foundation-android = "1.7.2"
+foundation-layout-android = "1.7.2"
+google-play-services = "20.7.0"
+material-components = "1.12.0"
+places = "4.2.0"
+room-compiler = "2.6.1"
+firebase-messaging-ktx = "24.1.1"
+work-runtime-ktx = "2.9.0"
+datastore-core-android = "1.1.4"
+core-ktx = "1.13.0"
+
+[libraries]
+androidx-core-v150 = { module = "androidx.test:core", version.ref = "core" }
+androidx-material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
+androidx-rules-v150 = { module = "androidx.test:rules", version.ref = "rules" }
+androidx-runner-v152 = { module = "androidx.test:runner", version.ref = "runner" }
+androidx-work-runtime-ktx-v290 = { module = "androidx.work:work-runtime-ktx", version.ref = "work-runtime-ktx" }
+annotations = { module = "org.jetbrains:annotations", version.ref = "annotations" }
+desugar_jdk_libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
+hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt-android" }
+hilt-android-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt-android" }
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activity-compose" }
+compose-material-icons = { module = "androidx.compose.material:material-icons-extended", version.ref = "compose" }
+compose-navigation = { module = "androidx.navigation:navigation-compose", version.ref = "compose-navigation" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinx-coroutines-android" }
+lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "lifecycle" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+play-services-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "play-services-auth" }
+work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+health-connect-client = { module = "androidx.health.connect:connect-client", version.ref = "health-connect" }
+material = { module = "com.google.android.material:material", version.ref = "material" }
+compose-ui = { module = "androidx.compose.ui:ui", version.ref = "compose-ui" }
+compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview", version.ref = "compose-ui" }
+junit = { module = "junit:junit", version.ref = "junit" }
+androidx-test-core = { module = "androidx.test:core", version.ref = "androidx-test" }
+androidx-test-runner = { module = "androidx.test:runner", version.ref = "androidx-test-runner" }
+androidx-test-rules = { module = "androidx.test:rules", version.ref = "rules" }
+androidx-test-ext-junit = { module = "androidx.test.ext:junit", version.ref = "androidx-test-ext-junit" }
+retrofit = { module = "com.squareup.retrofit2:retrofit", version.ref = "retrofit" }
+converter-gson = { module = "com.squareup.retrofit2:converter-gson", version.ref = "converter-gson" }
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinx-coroutines" }
+androidx-material3-android = { group = "androidx.compose.material3", name = "material3-android", version.ref = "material3-android" }
+androidx-foundation-android = { group = "androidx.compose.foundation", name = "foundation-android", version.ref = "foundation-android" }
+androidx-foundation-layout-android = { group = "androidx.compose.foundation", name = "foundation-layout-android", version.ref = "foundation-layout-android" }
+google-play-services-auth = { module = "com.google.android.gms:play-services-auth", version.ref = "google-play-services" }
+material-components = { module = "com.google.android.material:material", version.ref = "material-components" }
+places = { group = "com.google.android.libraries.places", name = "places", version.ref = "places" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room-compiler" }
+firebase-messaging-ktx = { group = "com.google.firebase", name = "firebase-messaging-ktx", version.ref = "firebase-messaging-ktx" }
+androidx-datastore-core-android = { group = "androidx.datastore", name = "datastore-core-android", version.ref = "datastore-core-android" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "android-gradle" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
