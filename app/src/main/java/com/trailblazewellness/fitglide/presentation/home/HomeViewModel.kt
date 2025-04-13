@@ -4,11 +4,14 @@ import android.content.Context
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.max.MaxAiService
 import com.trailblazewellness.fitglide.data.max.MaxPromptBuilder
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDate
 
 class HomeViewModel(
@@ -21,14 +24,18 @@ class HomeViewModel(
             heartRate = 0f, maxHeartRate = 200f, hydration = 0f, caloriesLogged = 0f, weightLost = 0f,
             bmr = 2000, stressScore = "Low", challengeOrAnnouncement = "Weekly Step Challenge!",
             streak = 0, showStories = true, storiesOrLeaderboard = listOf("User: 10K steps"),
-            maxMessage = MaxMessage("You crushed it yesterday!", "Let’s win today too!", false),
-            isTracking = false, trackedSteps = 0f, dateRangeMode = "Day"
+            maxMessage = MaxMessage("", "", false),
+            isTracking = false, trackedSteps = 0f, dateRangeMode = "Day",
+            badges = emptyList()
         )
     )
     val homeData: StateFlow<HomeData> = _homeData.asStateFlow()
 
     fun initializeWithContext(context: Context) {
+        Log.d("DesiMaxDebug", "🚀 initializeWithContext triggered")
+
         val savedMax = loadSavedMaxMessage(context)
+        Log.d("DesiMaxDebug", "📤 Loaded from SharedPrefs: $savedMax")
         _homeData.update { it.copy(maxMessage = savedMax) }
 
         viewModelScope.launch {
@@ -47,11 +54,16 @@ class HomeViewModel(
                     hydration = hydration
                 )
 
-                val response = MaxAiService.fetchMaxGreeting(prompt)
+                Log.d("DesiMaxDebug", "⏳ Building Max prompt...")
+
+                val response = withContext(Dispatchers.IO) {
+                    MaxAiService.fetchMaxGreeting(prompt)
+                }
+
                 val lines = response.split("\n").filter { it.isNotBlank() }
 
-                Log.d("MaxAiService", "Prompt sent:\n$prompt")
-                Log.d("MaxAiService", "Response:\n$response")
+                Log.d("DesiMaxDebug", "📩 Raw Max Response: $response")
+                Log.d("DesiMaxDebug", "✂️ Extracted Lines: $lines")
 
                 val yesterdayMsg = lines.getOrNull(0)
                     ?: "Arre kal thoda slow tha yaar 😅 Aaj full josh mein jaa! 💪"
@@ -64,27 +76,46 @@ class HomeViewModel(
                     MaxAiService.speak("$yesterdayMsg $todayMsg")
                 }
 
-                saveMaxMessage(context, updatedMax)
+                val updated = _homeData.value.copy(
+                    watchSteps = steps,
+                    sleepHours = sleep,
+                    hydration = hydration,
+                    heartRate = hr,
+                    caloriesBurned = calories,
+                    maxMessage = updatedMax
+                )
+
+                val newBadges = assignBadges(updated)
 
                 _homeData.update {
-                    it.copy(
-                        watchSteps = steps,
-                        sleepHours = sleep,
-                        hydration = hydration,
-                        heartRate = hr,
-                        caloriesBurned = calories,
-                        maxMessage = updatedMax
-                    )
+                    updated.copy(badges = newBadges)
                 }
             }.collect()
         }
     }
 
+    private fun assignBadges(data: HomeData): List<StrapiApi.Badge> {
+        val earnedBadges = mutableListOf<StrapiApi.Badge>()
+
+        val totalSteps = data.watchSteps + data.manualSteps + data.trackedSteps
+
+        if (totalSteps >= 10000) earnedBadges.add(StrapiApi.Badge(1, "Step Sultan", "10K+ Steps in a day!", "https://cdn.example.com/step_sultan.png"))
+        if (data.hydration >= 2.5f) earnedBadges.add(StrapiApi.Badge(2, "Hydration Hero", "Drank 2.5L of water", "https://cdn.example.com/hydration_hero.png"))
+        if (data.sleepHours >= 7.5f) earnedBadges.add(StrapiApi.Badge(3, "Sleep Maharaja", "Slept well last night", "https://cdn.example.com/sleep_maharaja.png"))
+        if (data.caloriesBurned >= 500) earnedBadges.add(StrapiApi.Badge(4, "Dumbbell Daaku", "Burned 500+ cals", "https://cdn.example.com/dumbbell_daaku.png"))
+        if (totalSteps >= 5000 && data.heartRate <= 85) earnedBadges.add(StrapiApi.Badge(5, "Yoga Yodha", "Balanced effort", "https://cdn.example.com/yoga_yodha.png"))
+        if (totalSteps > 8000 && data.caloriesBurned > 450 && data.sleepHours > 7) earnedBadges.add(StrapiApi.Badge(6, "Josh Machine", "All-round performer", "https://cdn.example.com/josh_machine.png"))
+
+        return earnedBadges
+    }
+
+
     private fun loadSavedMaxMessage(context: Context): MaxMessage {
         val prefs = context.getSharedPreferences("max_prefs", Context.MODE_PRIVATE)
-        val yesterday = prefs.getString("max_yesterday", "You crushed it yesterday!") ?: ""
-        val today = prefs.getString("max_today", "Let’s win today too!") ?: ""
+        val yesterday = prefs.getString("max_yesterday", "") ?: ""
+        val today = prefs.getString("max_today", "") ?: ""
         val hasPlayed = prefs.getBoolean("max_hasPlayed", false)
+        Log.d("DesiMaxDebug", "📤 Loaded from SharedPrefs: yesterday='$yesterday', today='$today'")
         return MaxMessage(yesterday, today, hasPlayed)
     }
 
@@ -93,7 +124,7 @@ class HomeViewModel(
         prefs.edit().apply {
             putString("max_yesterday", maxMessage.yesterday)
             putString("max_today", maxMessage.today)
-            putBoolean("max_hasPlayed", false)
+            putBoolean("max_hasPlayed", maxMessage.hasPlayed)
             apply()
         }
     }
@@ -153,7 +184,9 @@ data class HomeData(
     val maxMessage: MaxMessage,
     val isTracking: Boolean,
     val trackedSteps: Float,
-    val dateRangeMode: String
+    val dateRangeMode: String,
+    val badges: List<StrapiApi.Badge> = emptyList()
+
 )
 
 data class MaxMessage(val yesterday: String, val today: String, val hasPlayed: Boolean)

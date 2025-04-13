@@ -78,6 +78,10 @@ dependencies {
     implementation(libs.places)
     implementation(libs.androidx.room.compiler)
     implementation(libs.okhttp)
+    implementation(libs.coil.compose)
+    implementation(libs.androidx.compose.bom)
+
+
 
     // Explicitly use latest annotations
     implementation(libs.annotations)

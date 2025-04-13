@@ -1,5 +1,7 @@
 [versions]
 annotations = "23.0.0"
+coil-compose = "2.5.0"
+compose-bom = "2025.04.00"
 core = "1.5.0"
 desugar_jdk_libs = "2.1.2"
 hilt-android = "2.51.1"
@@ -39,12 +41,14 @@ datastore-core-android = "1.1.4"
 core-ktx = "1.13.0"
 
 [libraries]
+androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
 androidx-core-v150 = { module = "androidx.test:core", version.ref = "core" }
 androidx-material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
 androidx-rules-v150 = { module = "androidx.test:rules", version.ref = "rules" }
 androidx-runner-v152 = { module = "androidx.test:runner", version.ref = "runner" }
 androidx-work-runtime-ktx-v290 = { module = "androidx.work:work-runtime-ktx", version.ref = "work-runtime-ktx" }
 annotations = { module = "org.jetbrains:annotations", version.ref = "annotations" }
+coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil-compose" }
 desugar_jdk_libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar_jdk_libs" }
 hilt-android = { module = "com.google.dagger:hilt-android", version.ref = "hilt-android" }
 hilt-android-compiler = { module = "com.google.dagger:hilt-android-compiler", version.ref = "hilt-android" }

@@ -2,7 +2,6 @@ package com.trailblazewellness.fitglide.data.max
 
 import android.content.Context
 import android.os.Bundle
-import android.provider.Settings.Global.putString
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.util.Log
@@ -11,18 +10,22 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.util.*
+import java.util.Locale
+import java.util.concurrent.TimeUnit
+
 
 object MaxAiService {
     private const val TAG = "MaxAiService"
     private const val OLLAMA_BASE_URL = "https://max.fitglide.in"
-    private const val MODEL_NAME = "phi"
+    private const val MODEL_NAME = "phi" // You can swap to "mistral" when ready
 
-    private val client = OkHttpClient()
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .build()
+
     private var tts: TextToSpeech? = null
-
-    private var textToSpeech: TextToSpeech? = null
-    private var isTtsInitialized = false
 
     fun initTTS(context: Context, onReady: () -> Unit = {}) {
         if (tts == null) {
@@ -31,7 +34,6 @@ object MaxAiService {
                     tts?.language = Locale("en", "IN")
                     tts?.setPitch(1.0f)
                     tts?.setSpeechRate(0.95f)
-                    isTtsInitialized = true
                     Log.d(TAG, "TTS initialized successfully 🎤")
                     onReady()
                 } else {
@@ -43,8 +45,6 @@ object MaxAiService {
         }
     }
 
-
-
     fun speak(text: String) {
         if (tts == null) {
             Log.w(TAG, "TTS engine not ready.")
@@ -54,7 +54,7 @@ object MaxAiService {
         val params = Bundle().apply {
             putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "MAX_AI_SPEAK")
         }
-        Log.d(TAG, "Speaking text: $text")
+        Log.d(TAG, "🔊 Speaking text: $text")
         tts?.speak(text, TextToSpeech.QUEUE_FLUSH, params, "MAX_AI_SPEAK")
 
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -93,29 +93,24 @@ object MaxAiService {
                 .post(body)
                 .build()
 
+            Log.d("DesiMaxDebug", "🌐 Sending request to Ollama with prompt:\n$prompt")
+
             client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
-                    Log.e(TAG, "Ollama failed: ${response.code}")
+                    Log.e("DesiMaxDebug", "❌ Ollama API call failed: ${'$'}{response.code}")
                     return "Max is chilling today 😅 Try again later!"
                 }
+
                 val result = JSONObject(response.body?.string() ?: "{}")
                 val responseText = result.optString("response", "")
-                Log.d(TAG, "Max AI replied: $responseText")
-//                speak(responseText) // 🔊 Speak the response
+                Log.d("DesiMaxDebug", "✅ Received from Ollama API: $responseText")
+
                 return responseText
             }
+
         } catch (e: Exception) {
-            Log.e(TAG, "Error hitting Ollama API", e)
+            Log.e("DesiMaxDebug", "🚨 Exception during Ollama API call", e)
             return "Oops! Max forgot his protein shake. Try again later! 😅"
         }
-    }
-
-    fun shutUp() {
-        textToSpeech?.stop()
-    }
-
-    fun destroyTTS() {
-        textToSpeech?.stop()
-        textToSpeech?.shutdown()
     }
 }

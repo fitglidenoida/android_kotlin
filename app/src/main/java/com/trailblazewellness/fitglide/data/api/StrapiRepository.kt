@@ -495,6 +495,15 @@ class StrapiRepository(
         }
     }
 
+    suspend fun getDesiMessages(token: String): Response<StrapiApi.DesiMessageListResponse> {
+        return strapiApi.getDesiMessages("*", token)
+    }
+
+    suspend fun getBadges(token: String): Response<StrapiApi.BadgeListResponse> {
+        return strapiApi.getBadges("*", token)
+    }
+
+
     private fun <T> logResponse(method: String, response: Response<T>) {
         if (response.isSuccessful) {
             Log.d(TAG, "$method successful: ${response.code()} - Body: ${response.body()}")

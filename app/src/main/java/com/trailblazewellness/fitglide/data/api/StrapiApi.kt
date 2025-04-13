@@ -318,6 +318,19 @@
             @Header("Authorization") token: String // Strapi JWT
         ): Response<WorkoutLogListResponse> // Returns workout-logs entries
 
+        @GET("desi-messages")
+        suspend fun getDesiMessages(
+            @Query("populate") populate: String = "*",
+            @Header("Authorization") token: String
+        ): Response<DesiMessageListResponse>
+
+        @GET("badges")
+        suspend fun getBadges(
+            @Query("populate") populate: String = "*",
+            @Header("Authorization") token: String
+        ): Response<BadgeListResponse>
+
+
         // Data Classes (Reused and New)
         data class UserId(
             @SerializedName("id") val id: String? // Changed to String? to allow null
@@ -694,4 +707,47 @@
             val refresh_token: String,
             val expires_at: Long
         )
+
+        data class DesiMessageListResponse(val data: List<DesiMessage>)
+        data class DesiMessage(
+            val id: String,
+            val attributes: DesiMessageAttributes
+        )
+
+        data class DesiMessageAttributes(
+            val title: String,
+            @SerializedName("yesterday_line") val yesterdayLine: String,
+            @SerializedName("today_line") val todayLine: String,
+            val badge: String,
+            @SerializedName("language_style") val languageStyle: String,
+            @SerializedName("is_premium") val isPremium: Boolean
+        )
+
+        data class BadgeListResponse(val data: List<Badge>)
+        data class Badge(
+            val id: Int,
+            val title: String,
+            val description: String,
+            val iconUrl: String
+        )
+
+//        data class BadgeAttributes(
+//            val name: String,
+//            val description: String,
+//            val icon: Media?
+//        )
+
+        data class Media(
+            val data: MediaData?
+        )
+
+        data class MediaData(
+            val id: Int,
+            val attributes: MediaAttributes
+        )
+
+        data class MediaAttributes(
+            val url: String
+        )
+
     }

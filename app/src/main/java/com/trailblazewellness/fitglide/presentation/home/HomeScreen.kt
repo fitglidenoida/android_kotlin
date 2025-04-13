@@ -7,6 +7,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -32,13 +34,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.trailblazewellness.fitglide.FitGlideTheme
+import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
 import com.trailblazewellness.fitglide.data.workers.WorkoutTrackingService
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
 import com.trailblazewellness.fitglide.presentation.home.HomeViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import com.trailblazewellness.fitglide.data.api.StrapiApi.Badge
+
 
 @Composable
 fun HomeScreen(
@@ -68,6 +74,11 @@ fun HomeScreen(
         if (trackedSteps > 5 && !homeData.isTracking && !showTrackingPopup) {
             showTrackingPopup = true
         }
+    }
+
+    LaunchedEffect(Unit) {
+        Log.d("DesiMaxDebug", "⏳ Launching Max combine collector...")
+        homeViewModel.initializeWithContext(context)
     }
 
     LaunchedEffect(homeData.maxMessage) {
@@ -482,8 +493,6 @@ fun HomeScreen(
                         )
                     }
                 }
-
-                // Achievements
                 Text(
                     text = "Achievements",
                     fontSize = 20.sp,
@@ -491,44 +500,52 @@ fun HomeScreen(
                     color = Color(0xFF212121),
                     modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
                 )
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .shadow(6.dp, RoundedCornerShape(16.dp)),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF9C4))
+
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row {
-                            Icon(
-                                imageVector = Icons.Default.Shield,
-                                contentDescription = "Streak",
-                                tint = Color(0xFFFFA500),
-                                modifier = Modifier.size(32.dp)
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = "Streak: ${homeData.streak} days",
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF212121)
-                            )
-                        }
-                        IconButton(onClick = { /* TODO: Share */ }) {
-                            Icon(
-                                imageVector = Icons.Default.Share,
-                                contentDescription = "Share",
-                                tint = Color(0xFF4CAF50)
-                            )
+                    items(homeData.badges) { badge ->
+                        Card(
+                            modifier = Modifier
+                                .width(160.dp)
+                                .height(180.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .fillMaxSize(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                AsyncImage(
+                                    model = badge.iconUrl,
+                                    contentDescription = badge.title,
+                                    modifier = Modifier.size(48.dp)
+                                )
+                                Text(
+                                    text = badge.title,
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF212121),
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = badge.description,
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF757575),
+                                    maxLines = 2
+                                )
+                            }
                         }
                     }
                 }
+
+
+
 
                 // Stories/Leaderboard
                 Text(
@@ -718,7 +735,54 @@ fun HomeScreen(
         }
     }
 }
-
+@Composable
+fun BadgeCarousel(badges: List<StrapiApi.Badge>) {
+    if (badges.isEmpty()) return
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+        Text(
+            text = "🏅 Your Desi Badges",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color(0xFF212121),
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        LazyRow(contentPadding = PaddingValues(horizontal = 8.dp)) {
+            items(badges) { badge ->
+                Card(
+                    modifier = Modifier
+                        .padding(horizontal = 8.dp)
+                        .width(200.dp),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    elevation = CardDefaults.cardElevation(4.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        AsyncImage(
+                            model = badge.iconUrl,
+                            contentDescription = badge.title,
+                            modifier = Modifier.size(64.dp)
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = badge.title,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                            color = Color(0xFF212121)
+                        )
+                        Text(
+                            text = badge.description,
+                            fontSize = 12.sp,
+                            color = Color(0xFF757575)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
 @Composable
 fun NavigationCard(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
     Card(

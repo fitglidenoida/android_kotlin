@@ -105,6 +105,8 @@ class MainActivity : ComponentActivity() {
             delay(3000) // Let UI settle
             setupBackgroundTasks()
         }
+
+        Log.d("DesiMaxDebug", "📱 FitGlide app launched. Logcat is working!")
     }
 
     private fun initializeDependencies() {
