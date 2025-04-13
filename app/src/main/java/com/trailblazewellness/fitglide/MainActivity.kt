@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -35,17 +36,29 @@ import com.trailblazewellness.fitglide.presentation.home.HomeViewModel
 import com.trailblazewellness.fitglide.presentation.navigation.HealthConnectNavigation
 import com.trailblazewellness.fitglide.presentation.onboarding.SignupScreen
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
+
+    // Core managers & repositories
     private lateinit var googleAuthManager: GoogleAuthManager
     private lateinit var authRepository: AuthRepository
     private lateinit var healthConnectManager: HealthConnectManager
     private lateinit var strapiRepository: StrapiRepository
+
+    // ViewModels
     private lateinit var commonViewModel: CommonViewModel
     private lateinit var homeViewModel: HomeViewModel
 
-    private val healthConnectPermissions = setOf(
+    // Permissions
+    private val healthPermissions = setOf(
+        Manifest.permission.ACTIVITY_RECOGNITION,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+        Manifest.permission.FOREGROUND_SERVICE,
+        Manifest.permission.FOREGROUND_SERVICE_LOCATION,
         "android.permission.health.READ_STEPS",
         "android.permission.health.READ_SLEEP",
         "android.permission.health.READ_EXERCISE",
@@ -54,29 +67,14 @@ class MainActivity : ComponentActivity() {
         "android.permission.health.READ_DISTANCE",
         "android.permission.health.READ_TOTAL_CALORIES_BURNED",
         "android.permission.health.WRITE_STEPS",
-        "android.permission.health.READ_NUTRITION",
-        Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_COARSE_LOCATION,
-        Manifest.permission.FOREGROUND_SERVICE,
-        Manifest.permission.FOREGROUND_SERVICE_LOCATION
+        "android.permission.health.READ_NUTRITION"
     )
-
-    private val activityPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) Log.d("MainActivity", "ACTIVITY_RECOGNITION granted")
-        else Log.w("MainActivity", "ACTIVITY_RECOGNITION denied")
-    }
 
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
-    ) { permissions ->
-        permissions.entries.forEach { Log.d("MainActivity", "${it.key} = ${it.value}") }
-        permissionsGranted = permissions.all { it.value }
-        if (!permissionsGranted) Log.w("MainActivity", "Some permissions denied")
+    ) { results ->
+        results.forEach { Log.d("MainActivity", "${it.key} = ${it.value}") }
     }
-
-    private var permissionsGranted by mutableStateOf(false)
 
     companion object {
         lateinit var commonViewModel: CommonViewModel
@@ -85,70 +83,85 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        googleAuthManager = GoogleAuthManager(this)
-        authRepository = AuthRepository(googleAuthManager, this)
-        healthConnectManager = HealthConnectManager(this)
-        strapiRepository = StrapiRepository(authRepository.strapiApi, authRepository)
-        commonViewModel = CommonViewModel(this, strapiRepository, healthConnectManager, authRepository)
-        homeViewModel = HomeViewModel(commonViewModel)
-        MainActivity.commonViewModel = commonViewModel
-        MaxAiService.initTTS(this)
-        MaxAiService.speak("Testing speech. Are you hearing this, boss?")
+        // Step 1: Init dependencies
+        initializeDependencies()
 
-        val serviceIntent = Intent(this, WorkoutTrackingService::class.java).apply {
-            putExtra("userId", authRepository.getAuthState().getId() ?: "4")
-            putExtra("workoutType", "Walking")
-            putExtra("token", "Bearer ${authRepository.getAuthState().jwt ?: ""}")
-        }
-        ContextCompat.startForegroundService(this, serviceIntent)
-        Log.d("MainActivity", "Started WorkoutTrackingService on app launch")
-
-        scheduleHydrationReminder(this)
-        scheduleMaxDailyGreeting(this) // ✅ Schedule Max's AI daily prompt
-
+        // Step 2: Setup Compose UI
         setContent {
             FitGlideTheme {
                 Surface(
-                    modifier = Modifier.fillMaxSize().background(Color(0xFFF5F5F5)),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0xFFF5F5F5)),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen()
+                    MainNavigation()
                 }
             }
         }
 
-        if (checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) {
-            activityPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+        // Step 3: Background Setup (Defer heavy stuff)
+        lifecycleScope.launch {
+            delay(3000) // Let UI settle
+            setupBackgroundTasks()
         }
     }
 
-    private fun scheduleMaxDailyGreeting(context: Context) {
-        val workRequest = PeriodicWorkRequestBuilder<com.trailblazewellness.fitglide.data.workers.MaxGreetingWorker>(
+    private fun initializeDependencies() {
+        googleAuthManager = GoogleAuthManager(this)
+        authRepository = AuthRepository(googleAuthManager, this)
+        healthConnectManager = HealthConnectManager(this)
+        strapiRepository = StrapiRepository(authRepository.strapiApi, authRepository)
+
+        commonViewModel = CommonViewModel(this, strapiRepository, healthConnectManager, authRepository)
+        homeViewModel = HomeViewModel(commonViewModel)
+        MainActivity.commonViewModel = commonViewModel
+
+        MaxAiService.initTTS(this) // Safe to init early, just don’t speak here
+    }
+
+    private fun setupBackgroundTasks() {
+        requestPermissionsIfNeeded()
+        scheduleHydrationReminder(this)
+        scheduleMaxGreetingWorker(this)
+        startWorkoutService()
+    }
+
+    private fun startWorkoutService() {
+        val intent = Intent(this, WorkoutTrackingService::class.java).apply {
+            putExtra("userId", authRepository.getAuthState().getId() ?: "4")
+            putExtra("workoutType", "Walking")
+            putExtra("token", "Bearer ${authRepository.getAuthState().jwt ?: ""}")
+        }
+        ContextCompat.startForegroundService(this, intent)
+        Log.d("MainActivity", "Started WorkoutTrackingService on launch")
+    }
+
+    private fun scheduleMaxGreetingWorker(context: Context) {
+        val request = PeriodicWorkRequestBuilder<com.trailblazewellness.fitglide.data.workers.MaxGreetingWorker>(
             1, TimeUnit.DAYS
-        )
-            .setInitialDelay(6, TimeUnit.HOURS)
-            .build()
+        ).setInitialDelay(6, TimeUnit.HOURS).build()
 
         WorkManager.getInstance(context).enqueueUniquePeriodicWork(
             "max_greeting_refresh",
             ExistingPeriodicWorkPolicy.UPDATE,
-            workRequest
+            request
         )
     }
 
+    private fun requestPermissionsIfNeeded() {
+        val missing = healthPermissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (missing.isNotEmpty()) {
+            permissionLauncher.launch(missing.toTypedArray())
+        }
+    }
+
     @Composable
-    fun MainScreen() {
+    fun MainNavigation() {
         val navController = rememberNavController()
         val authState by authRepository.authStateFlow.collectAsState()
-        var permissionRequested by remember { mutableStateOf(false) }
-
-        LaunchedEffect(Unit) {
-            permissionsGranted = healthConnectManager.hasAllPermissions(healthConnectPermissions)
-            if (!permissionsGranted && !permissionRequested) {
-                permissionLauncher.launch(healthConnectPermissions.toTypedArray())
-                permissionRequested = true
-            }
-        }
 
         NavHost(navController = navController, startDestination = "login") {
             composable("login") {

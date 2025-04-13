@@ -28,9 +28,8 @@ class HomeViewModel(
     val homeData: StateFlow<HomeData> = _homeData.asStateFlow()
 
     fun initializeWithContext(context: Context) {
-        MaxAiService.initTTS(context)
         val savedMax = loadSavedMaxMessage(context)
-        _homeData.value = _homeData.value.copy(maxMessage = savedMax)
+        _homeData.update { it.copy(maxMessage = savedMax) }
 
         viewModelScope.launch {
             combine(
@@ -67,18 +66,17 @@ class HomeViewModel(
 
                 saveMaxMessage(context, updatedMax)
 
-                _homeData.value.copy(
-                    watchSteps = steps,
-                    sleepHours = sleep,
-                    hydration = hydration,
-                    heartRate = hr,
-                    caloriesBurned = calories,
-                    maxMessage = updatedMax
-                )
-
-            }.collect { updatedData ->
-                _homeData.value = updatedData
-            }
+                _homeData.update {
+                    it.copy(
+                        watchSteps = steps,
+                        sleepHours = sleep,
+                        hydration = hydration,
+                        heartRate = hr,
+                        caloriesBurned = calories,
+                        maxMessage = updatedMax
+                    )
+                }
+            }.collect()
         }
     }
 
@@ -95,7 +93,7 @@ class HomeViewModel(
         prefs.edit().apply {
             putString("max_yesterday", maxMessage.yesterday)
             putString("max_today", maxMessage.today)
-            putBoolean("max_hasPlayed", maxMessage.hasPlayed)
+            putBoolean("max_hasPlayed", false)
             apply()
         }
     }
@@ -104,21 +102,21 @@ class HomeViewModel(
 
     fun markMaxMessagePlayed(context: Context) {
         val updated = _homeData.value.maxMessage.copy(hasPlayed = true)
-        _homeData.value = _homeData.value.copy(maxMessage = updated)
+        _homeData.update { it.copy(maxMessage = updated) }
         saveMaxMessage(context, updated)
     }
 
     fun startTracking() {
         if (!_homeData.value.isTracking) {
             Log.d("HomeViewModel", "Starting tracking")
-            _homeData.value = _homeData.value.copy(isTracking = true)
+            _homeData.update { it.copy(isTracking = true) }
         }
     }
 
     fun stopTracking() {
         if (_homeData.value.isTracking) {
             Log.d("HomeViewModel", "Stopping tracking")
-            _homeData.value = _homeData.value.copy(isTracking = false)
+            _homeData.update { it.copy(isTracking = false) }
         }
     }
 
@@ -127,11 +125,11 @@ class HomeViewModel(
     }
 
     fun toggleStoriesOrLeaderboard() {
-        _homeData.value = _homeData.value.copy(showStories = !_homeData.value.showStories)
+        _homeData.update { it.copy(showStories = !it.showStories) }
     }
 
     fun setDateRangeMode(mode: String) {
-        _homeData.value = _homeData.value.copy(dateRangeMode = mode)
+        _homeData.update { it.copy(dateRangeMode = mode) }
     }
 }
 

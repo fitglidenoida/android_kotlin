@@ -27,6 +27,7 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import android.Manifest
 import android.content.pm.PackageManager
+import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
 
 class WorkoutTrackingService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -44,11 +45,11 @@ class WorkoutTrackingService : Service() {
     private var initialStepCount: Long = -1L
     private var lastMovedTime: Long = 0L
 
+
     private lateinit var healthConnect: HealthConnectManager
     private val notificationManager by lazy { getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager }
     private lateinit var locationCallback: LocationCallback
     private var stepListener: SensorEventListener? = null
-
     private var userId: String = "4"
     private var workoutType: String = "Walking"
     private var token: String = ""
