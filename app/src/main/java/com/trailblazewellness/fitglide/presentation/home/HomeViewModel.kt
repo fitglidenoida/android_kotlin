@@ -36,6 +36,7 @@ class HomeViewModel(
 
         val savedMax = loadSavedMaxMessage(context)
         Log.d("DesiMaxDebug", "📤 Loaded from SharedPrefs: $savedMax")
+
         _homeData.update { it.copy(maxMessage = savedMax) }
 
         viewModelScope.launch {
@@ -120,6 +121,7 @@ class HomeViewModel(
     }
 
     private fun saveMaxMessage(context: Context, maxMessage: MaxMessage) {
+        Log.d("DesiMaxDebug", "💾 Saving Max: $maxMessage")
         val prefs = context.getSharedPreferences("max_prefs", Context.MODE_PRIVATE)
         prefs.edit().apply {
             putString("max_yesterday", maxMessage.yesterday)

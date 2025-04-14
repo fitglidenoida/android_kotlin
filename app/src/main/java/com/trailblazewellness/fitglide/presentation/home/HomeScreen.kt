@@ -62,7 +62,8 @@ fun HomeScreen(
     val trackedSteps by commonViewModel.trackedStepsFlow.collectAsState()
     val challenges by commonViewModel.challenges.collectAsState(initial = emptyList()) // Fetch challenges
     val scrollState = rememberScrollState()
-    var showMaxPopup by remember { mutableStateOf(!homeData.maxMessage.hasPlayed && homeViewModel.getMaxMessage() != null) }
+    var showMaxPopup by remember { mutableStateOf(false) }
+    val maxMessage = homeViewModel.getMaxMessage()
     var showTrackingPopup by remember { mutableStateOf(false) }
     var showRangePicker by remember { mutableStateOf(false) }
     var workoutType by remember { mutableStateOf("Walking") }
@@ -81,8 +82,13 @@ fun HomeScreen(
         homeViewModel.initializeWithContext(context)
     }
 
-    LaunchedEffect(homeData.maxMessage) {
-        showMaxPopup = !homeData.maxMessage.hasPlayed && homeViewModel.getMaxMessage() != null
+
+
+    LaunchedEffect(maxMessage) {
+        if (maxMessage != null && !maxMessage.hasPlayed) {
+            showMaxPopup = true
+            Log.d("DesiMaxDebug", "🎯 showMaxPopup = true from LaunchedEffect")
+        }
     }
 
     // Find the first active step challenge
