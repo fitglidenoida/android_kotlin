@@ -22,15 +22,17 @@ class StrapiRepository(
         steps: Long,
         hydration: Float,
         heartRate: Long?,
+        caloriesBurned: Float?, // Added parameter
         source: String,
         token: String
     ): Response<StrapiApi.HealthLogResponse> {
-        val userId = authRepository.getAuthState().getId() ?: "unknown" // Default to "unknown" if null
+        val userId = authRepository.getAuthState().getId() ?: "unknown"
         val request = StrapiApi.HealthLogRequest(
             dateTime = date,
             steps = steps,
             waterIntake = hydration,
             heartRate = heartRate,
+            caloriesBurned = caloriesBurned, // Include new field
             source = source,
             usersPermissionsUser = StrapiApi.UserId(userId)
         )
@@ -52,7 +54,11 @@ class StrapiRepository(
         }
     }
 
-    suspend fun getHealthLog(date: String, token: String, source: String? = null): Response<StrapiApi.HealthLogListResponse> {
+    suspend fun getHealthLog(
+        date: String,
+        token: String,
+        source: String? = null
+    ): Response<StrapiApi.HealthLogListResponse> {
         val filters = mutableMapOf("filters[dateTime][\$eq]" to date)
         source?.let { filters["filters[source][\$eq]"] = it }
         Log.d(TAG, "Fetching health log with filters: $filters")
@@ -65,7 +71,7 @@ class StrapiRepository(
     suspend fun syncSleepLog(date: LocalDate, sleepData: SleepData): Response<StrapiApi.SleepLogResponse> {
         val token = "Bearer ${authRepository.getAuthState().jwt}"
         val isoDate = date.atStartOfDay().format(isoFormatter)
-        val userId = authRepository.getAuthState().getId() ?: "unknown" // Default to "unknown" if null
+        val userId = authRepository.getAuthState().getId() ?: "unknown"
         val request = StrapiApi.SleepLogRequest(
             date = isoDate,
             sleepDuration = (sleepData.total.toMinutes() / 60.0).toFloat(),
@@ -106,7 +112,7 @@ class StrapiRepository(
     suspend fun updateSleepLog(documentId: String, sleepData: SleepData): Response<StrapiApi.SleepLogResponse> {
         val token = "Bearer ${authRepository.getAuthState().jwt}"
         val isoDate = sleepData.start.toLocalDate().atStartOfDay().format(isoFormatter)
-        val userId = authRepository.getAuthState().getId() ?: "unknown" // Default to "unknown" if null
+        val userId = authRepository.getAuthState().getId() ?: "unknown"
         val request = StrapiApi.SleepLogRequest(
             date = isoDate,
             sleepDuration = (sleepData.total.toMinutes() / 60.0).toFloat(),
@@ -138,7 +144,7 @@ class StrapiRepository(
         exercises: List<StrapiApi.ExerciseId>,
         token: String
     ): Response<StrapiApi.WorkoutResponse> {
-        val userId = authRepository.getAuthState().getId() ?: "unknown" // Default to "unknown" if null
+        val userId = authRepository.getAuthState().getId() ?: "unknown"
         val request = StrapiApi.WorkoutRequest(
             workoutId = workoutId,
             title = title,
@@ -298,7 +304,7 @@ class StrapiRepository(
     suspend fun postDietPlan(body: DietPlanRequest, token: String): Response<StrapiApi.DietPlanResponse> {
         val dietPlanBody = StrapiApi.DietPlanBody(body)
         Log.d(TAG, "Posting diet plan: $dietPlanBody with token: $token")
-        val userId = body.userId.id ?: "unknown" // Default to "unknown" if null
+        val userId = body.userId.id ?: "unknown"
         val existingPlans = getDietPlan(userId, LocalDate.now(), token)
         if (existingPlans.isSuccessful) {
             existingPlans.body()?.data?.filter { it.active }?.forEach { plan ->
@@ -457,7 +463,7 @@ class StrapiRepository(
 
     // Friends
     suspend fun getFriends(filters: Map<String, String> = emptyMap(), token: String): Response<StrapiApi.FriendListResponse> {
-        val adjustedFilters = filters.mapKeys { it.key.replace("[\$eq]", "") } // Simplify filter syntax
+        val adjustedFilters = filters.mapKeys { it.key.replace("[\$eq]", "") }
         Log.d(TAG, "Fetching friends with adjusted filters: $adjustedFilters")
         return strapiApi.getFriends(adjustedFilters, token).also { response ->
             logResponse("getFriends", response)
@@ -495,14 +501,13 @@ class StrapiRepository(
         }
     }
 
-    suspend fun getDesiMessages(token: String): Response<StrapiApi.DesiMessageListResponse> {
+    suspend fun getDesiMessages(token: String): Response<StrapiApi.DesiMessageResponse> {
         return strapiApi.getDesiMessages("*", token)
     }
 
     suspend fun getBadges(token: String): Response<StrapiApi.BadgeListResponse> {
         return strapiApi.getBadges("*", token)
     }
-
 
     private fun <T> logResponse(method: String, response: Response<T>) {
         if (response.isSuccessful) {

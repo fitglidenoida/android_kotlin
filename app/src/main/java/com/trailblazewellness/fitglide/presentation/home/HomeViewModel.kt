@@ -6,122 +6,278 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.max.MaxAiService
-import com.trailblazewellness.fitglide.data.max.MaxPromptBuilder
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.random.Random
 
 class HomeViewModel(
-    private val commonViewModel: CommonViewModel
+    private val commonViewModel: CommonViewModel,
+    private val context: Context
 ) : ViewModel() {
+    private val sharedPreferences =
+        context.getSharedPreferences("fitglide_prefs", Context.MODE_PRIVATE)
 
     private val _homeData = MutableStateFlow(
         HomeData(
-            watchSteps = 0f, manualSteps = 0f, stepGoal = 11000f, sleepHours = 0f, caloriesBurned = 0f,
-            heartRate = 0f, maxHeartRate = 200f, hydration = 0f, caloriesLogged = 0f, weightLost = 0f,
-            bmr = 2000, stressScore = "Low", challengeOrAnnouncement = "Weekly Step Challenge!",
-            streak = 0, showStories = true, storiesOrLeaderboard = listOf("User: 10K steps"),
-            maxMessage = MaxMessage("", "", false),
-            isTracking = false, trackedSteps = 0f, dateRangeMode = "Day",
+            watchSteps = sharedPreferences.getFloat("steps", 0f),
+            manualSteps = 0f,
+            trackedSteps = sharedPreferences.getFloat("trackedSteps", 0f),
+            stepGoal = sharedPreferences.getFloat("stepGoal", 11000f),
+            sleepHours = sharedPreferences.getFloat("sleepHours", 0f),
+            caloriesBurned = sharedPreferences.getFloat("caloriesBurned", 0f),
+            heartRate = sharedPreferences.getFloat("heartRate", 0f),
+            maxHeartRate = 200f,
+            hydration = sharedPreferences.getFloat("hydration", 0f),
+            caloriesLogged = 0f,
+            weightLost = 0f,
+            bmr = sharedPreferences.getInt("bmr", 2000),
+            stressScore = "Low",
+            challengeOrAnnouncement = "Weekly Step Challenge!",
+            streak = 0,
+            showStories = true,
+            storiesOrLeaderboard = listOf("User: 10K steps"),
+            maxMessage = MaxMessage(
+                "",
+                "",
+                false
+            ),
+            isTracking = false,
+            dateRangeMode = "Day",
             badges = emptyList()
         )
     )
     val homeData: StateFlow<HomeData> = _homeData.asStateFlow()
 
-    fun initializeWithContext(context: Context) {
+    private val _fetchedBadges = MutableStateFlow<List<StrapiApi.Badge>>(emptyList())
+    private val hasFetchedMessages = AtomicBoolean(false) // Thread-safe single fetch
+
+    init {
+        Log.d("DesiMaxDebug", "HomeViewModel initialized")
+        fetchDesiMessagesAndBadges()
+    }
+
+    fun initializeWithContext() {
         Log.d("DesiMaxDebug", "🚀 initializeWithContext triggered")
 
-        val savedMax = loadSavedMaxMessage(context)
-        Log.d("DesiMaxDebug", "📤 Loaded from SharedPrefs: $savedMax")
-
-        _homeData.update { it.copy(maxMessage = savedMax) }
-
         viewModelScope.launch {
-            combine(
+            // Clear SharedPreferences for max message state
+            sharedPreferences.edit().apply {
+                remove("max_hasPlayed")
+                remove("max_yesterday")
+                remove("max_today")
+                apply()
+            }
+            Log.d("DesiMaxDebug", "Cleared max message SharedPreferences")
+
+            // Combine flows for health and state metrics
+            val healthFlow = combine(
                 commonViewModel.steps,
                 commonViewModel.sleepHours,
                 commonViewModel.hydration,
                 commonViewModel.heartRate,
                 commonViewModel.caloriesBurned
-            ) { steps, sleep, hydration, hr, calories ->
+            ) { steps, sleep, hydration, heartRate, calories ->
+                HealthMetrics(steps, sleep, hydration, heartRate, calories)
+            }
 
-                val prompt = MaxPromptBuilder.getPrompt(
-                    userName = commonViewModel.getAuthRepository().getAuthState().userName,
-                    steps = steps,
-                    sleep = sleep,
-                    hydration = hydration
-                )
+            val stateFlow = combine(
+                commonViewModel.trackedStepsFlow,
+                commonViewModel.bmr,
+                commonViewModel.isTracking,
+                commonViewModel.date
+            ) { trackedSteps, bmr, isTracking, date ->
+                StateMetrics(trackedSteps, bmr, isTracking, date)
+            }
 
-                Log.d("DesiMaxDebug", "⏳ Building Max prompt...")
-
-                val response = withContext(Dispatchers.IO) {
-                    MaxAiService.fetchMaxGreeting(prompt)
-                }
-
-                val lines = response.split("\n").filter { it.isNotBlank() }
-
-                Log.d("DesiMaxDebug", "📩 Raw Max Response: $response")
-                Log.d("DesiMaxDebug", "✂️ Extracted Lines: $lines")
-
-                val yesterdayMsg = lines.getOrNull(0)
-                    ?: "Arre kal thoda slow tha yaar 😅 Aaj full josh mein jaa! 💪"
-                val todayMsg = lines.getOrNull(1)
-                    ?: "Naya din, naya chance — thoda sweat bahao Boss! 🔥"
-
-                val updatedMax = MaxMessage(yesterdayMsg, todayMsg, hasPlayed = false)
-
-                if (commonViewModel.isTtsEnabled()) {
-                    MaxAiService.speak("$yesterdayMsg $todayMsg")
-                }
-
+            combine(healthFlow, stateFlow, _fetchedBadges) { health, state, badges ->
                 val updated = _homeData.value.copy(
-                    watchSteps = steps,
-                    sleepHours = sleep,
-                    hydration = hydration,
-                    heartRate = hr,
-                    caloriesBurned = calories,
-                    maxMessage = updatedMax
+                    watchSteps = health.steps,
+                    sleepHours = health.sleep,
+                    hydration = health.hydration,
+                    heartRate = health.heartRate,
+                    caloriesBurned = health.calories,
+                    trackedSteps = state.trackedSteps,
+                    bmr = state.bmr,
+                    isTracking = state.isTracking
                 )
-
-                val newBadges = assignBadges(updated)
-
-                _homeData.update {
-                    updated.copy(badges = newBadges)
-                }
-            }.collect()
+                updated.copy(badges = assignBadges(updated, badges))
+            }.collect { updatedHomeData ->
+                _homeData.value = updatedHomeData
+            }
         }
     }
 
-    private fun assignBadges(data: HomeData): List<StrapiApi.Badge> {
-        val earnedBadges = mutableListOf<StrapiApi.Badge>()
+    private fun fetchDesiMessagesAndBadges() {
+        if (hasFetchedMessages.getAndSet(true)) {
+            Log.d("DesiMaxDebug", "Skipping duplicate desi messages fetch")
+            return
+        }
 
+        viewModelScope.launch {
+            Log.d("DesiMaxDebug", "Entering desi messages coroutine")
+            // Delay to stabilize navigation
+            delay(1000L)
+            Log.d("DesiMaxDebug", "Starting desi messages fetch after delay")
+
+            // Fetch JWT from authRepository
+            val token = commonViewModel.getAuthRepository().getAuthState().jwt
+            Log.d("DesiMaxDebug", "JWT token from authRepository: ${token ?: "null"}")
+            if (token.isNullOrBlank()) {
+                Log.e("DesiMaxDebug", "JWT token is null or blank, cannot fetch desi messages")
+                commonViewModel.postUiMessage("Please log in to see Max's messages!")
+                // Use fallback message
+                val updatedMax = MaxMessage(
+                    "Arre kal thoda slow tha yaar 😅 Aaj full josh mein jaa! 💪",
+                    "Naya din, naya chance — thoda sweat bahao Boss! 🔥",
+                    false
+                )
+                _homeData.update { it.copy(maxMessage = updatedMax) }
+                saveMaxMessage(updatedMax)
+                Log.d("DesiMaxDebug", "Exiting desi messages coroutine due to null token")
+                return@launch
+            }
+
+            val authToken = "Bearer $token"
+            Log.d("DesiMaxDebug", "Fetching desi messages with token: $authToken")
+
+            // Fetch desi messages with retry
+            var messages: List<StrapiApi.DesiMessage> = emptyList()
+            for (attempt in 1..2) {
+                try {
+                    Log.d("DesiMaxDebug", "Attempt $attempt to fetch desi messages")
+                    val messagesResponse = withTimeoutOrNull(10000L) {
+                        withContext(Dispatchers.IO) {
+                            commonViewModel.getStrapiRepository().getDesiMessages(authToken)
+                        }
+                    }
+                    if (messagesResponse == null) {
+                        Log.e("DesiMaxDebug", "Desi messages fetch timed out after 10 seconds on attempt $attempt")
+                        continue
+                    }
+
+                    if (messagesResponse.isSuccessful) {
+                        val rawMessages = messagesResponse.body()?.data ?: emptyList()
+                        Log.d("DesiMaxDebug", "Raw desi messages response: $rawMessages")
+                        messages = rawMessages.filter {
+                            it.yesterdayLine != null && it.todayLine != null &&
+                                    it.yesterdayLine.isNotBlank() && it.todayLine.isNotBlank()
+                        }
+                        Log.d("DesiMaxDebug", "Fetched ${messages.size} valid desi messages: ${messages.map { it.todayLine }}")
+                        break
+                    } else {
+                        Log.e("DesiMaxDebug", "Failed to fetch desi messages on attempt $attempt: ${messagesResponse.code()} - ${messagesResponse.errorBody()?.string()}")
+                    }
+                } catch (e: Exception) {
+                    Log.e("DesiMaxDebug", "Exception fetching desi messages on attempt $attempt: ${e.message}", e)
+                }
+                if (attempt < 2) delay(2000L)
+            }
+
+            // Process messages
+            if (messages.isNotEmpty()) {
+                val randomMsg = messages.random()
+                val yesterdayMsg = randomMsg.yesterdayLine
+                val todayMsg = randomMsg.todayLine
+                val updatedMax = MaxMessage(yesterdayMsg, todayMsg, false)
+                Log.d("DesiMaxDebug", "Selected message - yesterday: $yesterdayMsg, today: $todayMsg")
+                if (commonViewModel.isTtsEnabled()) {
+                    withContext(Dispatchers.IO) {
+                        MaxAiService.speak("$yesterdayMsg $todayMsg")
+                    }
+                }
+                _homeData.update { it.copy(maxMessage = updatedMax) }
+                saveMaxMessage(updatedMax)
+            } else {
+                Log.w("DesiMaxDebug", "No valid desi messages fetched, using fallback")
+                commonViewModel.postUiMessage("Couldn't load Max's message. Showing a default one!")
+                val updatedMax = MaxMessage(
+                    "Arre kal thoda slow tha yaar 😅 Aaj full josh mein jaa! 💪",
+                    "Naya din, naya chance — thoda sweat bahao Boss! 🔥",
+                    false
+                )
+                _homeData.update { it.copy(maxMessage = updatedMax) }
+                saveMaxMessage(updatedMax)
+            }
+
+            // Fetch badges
+            try {
+                Log.d("DesiMaxDebug", "Fetching badges")
+                val badgesResponse = withTimeoutOrNull(10000L) {
+                    withContext(Dispatchers.IO) {
+                        commonViewModel.getStrapiRepository().getBadges(authToken)
+                    }
+                }
+                if (badgesResponse == null) {
+                    Log.e("DesiMaxDebug", "Badges fetch timed out after 10 seconds")
+                    commonViewModel.postUiMessage("Badges took too long to load. Try again!")
+                    return@launch
+                }
+                if (badgesResponse.isSuccessful) {
+                    val fetchedBadges = badgesResponse.body()?.data ?: emptyList()
+                    Log.d("DesiMaxDebug", "Fetched ${fetchedBadges.size} badges: ${fetchedBadges.map { it.name }}")
+                    val mappedBadges = fetchedBadges.mapNotNull { badge ->
+                        val iconUrl = badge.icon?.url?.let { url ->
+                            if (url.startsWith("http")) url else "https://admin.fitglide.in$url"
+                        } ?: run {
+                            Log.w("DesiMaxDebug", "Badge ${badge.name} has no icon, skipping")
+                            null
+                        }
+                        iconUrl?.let {
+                            StrapiApi.Badge(
+                                id = badge.id,
+                                title = badge.name,
+                                description = badge.description,
+                                iconUrl = it
+                            )
+                        }
+                    }
+                    _fetchedBadges.value = mappedBadges
+                } else {
+                    Log.e("DesiMaxDebug", "Failed to fetch badges: ${badgesResponse.code()} - ${badgesResponse.errorBody()?.string()}")
+                    commonViewModel.postUiMessage("Failed to load badges. Please try again.")
+                }
+            } catch (e: Exception) {
+                Log.e("DesiMaxDebug", "Exception fetching badges: ${e.message}", e)
+                commonViewModel.postUiMessage("Error loading badges. Please check your connection.")
+            }
+            Log.d("DesiMaxDebug", "Exiting desi messages coroutine")
+        }
+    }
+
+    private fun assignBadges(data: HomeData, fetchedBadges: List<StrapiApi.Badge>): List<StrapiApi.Badge> {
+        val earnedBadges = mutableListOf<StrapiApi.Badge>()
         val totalSteps = data.watchSteps + data.manualSteps + data.trackedSteps
 
-        if (totalSteps >= 10000) earnedBadges.add(StrapiApi.Badge(1, "Step Sultan", "10K+ Steps in a day!", "https://cdn.example.com/step_sultan.png"))
-        if (data.hydration >= 2.5f) earnedBadges.add(StrapiApi.Badge(2, "Hydration Hero", "Drank 2.5L of water", "https://cdn.example.com/hydration_hero.png"))
-        if (data.sleepHours >= 7.5f) earnedBadges.add(StrapiApi.Badge(3, "Sleep Maharaja", "Slept well last night", "https://cdn.example.com/sleep_maharaja.png"))
-        if (data.caloriesBurned >= 500) earnedBadges.add(StrapiApi.Badge(4, "Dumbbell Daaku", "Burned 500+ cals", "https://cdn.example.com/dumbbell_daaku.png"))
-        if (totalSteps >= 5000 && data.heartRate <= 85) earnedBadges.add(StrapiApi.Badge(5, "Yoga Yodha", "Balanced effort", "https://cdn.example.com/yoga_yodha.png"))
-        if (totalSteps > 8000 && data.caloriesBurned > 450 && data.sleepHours > 7) earnedBadges.add(StrapiApi.Badge(6, "Josh Machine", "All-round performer", "https://cdn.example.com/josh_machine.png"))
+        fetchedBadges.forEach { badge ->
+            when (badge.title) {
+                "Step Sultan" -> if (totalSteps >= 10000) earnedBadges.add(badge)
+                "Hydration Hero" -> if (data.hydration >= 2.5f) earnedBadges.add(badge)
+                "Sleep Maharaja" -> if (data.sleepHours >= 7.5f) earnedBadges.add(badge)
+                "Dumbbell Daaku" -> if (data.caloriesBurned >= 500) earnedBadges.add(badge)
+                "Yoga Yodha" -> if (totalSteps >= 5000 && data.heartRate <= 85) earnedBadges.add(badge)
+                "Josh Machine" -> if (totalSteps > 8000 && data.caloriesBurned > 450 && data.sleepHours > 7) {
+                    earnedBadges.add(badge)
+                }
+                "Cycle Rani" -> if (totalSteps >= 5000) earnedBadges.add(badge) // Placeholder
+                "Max Ka Dost" -> if (data.streak >= 7) earnedBadges.add(badge) // Placeholder
+            }
+        }
 
         return earnedBadges
     }
 
-
-    private fun loadSavedMaxMessage(context: Context): MaxMessage {
-        val prefs = context.getSharedPreferences("max_prefs", Context.MODE_PRIVATE)
-        val yesterday = prefs.getString("max_yesterday", "") ?: ""
-        val today = prefs.getString("max_today", "") ?: ""
-        val hasPlayed = prefs.getBoolean("max_hasPlayed", false)
-        Log.d("DesiMaxDebug", "📤 Loaded from SharedPrefs: yesterday='$yesterday', today='$today'")
-        return MaxMessage(yesterday, today, hasPlayed)
-    }
-
-    private fun saveMaxMessage(context: Context, maxMessage: MaxMessage) {
-        Log.d("DesiMaxDebug", "💾 Saving Max: $maxMessage")
+    private fun saveMaxMessage(maxMessage: MaxMessage) {
         val prefs = context.getSharedPreferences("max_prefs", Context.MODE_PRIVATE)
         prefs.edit().apply {
             putString("max_yesterday", maxMessage.yesterday)
@@ -129,26 +285,26 @@ class HomeViewModel(
             putBoolean("max_hasPlayed", maxMessage.hasPlayed)
             apply()
         }
+        Log.d("DesiMaxDebug", "Saved max message: yesterday=${maxMessage.yesterday}, today=${maxMessage.today}, hasPlayed=${maxMessage.hasPlayed}")
     }
 
-    fun getMaxMessage(): MaxMessage? = _homeData.value.maxMessage.takeIf { !it.hasPlayed }
-
-    fun markMaxMessagePlayed(context: Context) {
+    fun markMaxMessagePlayed() {
         val updated = _homeData.value.maxMessage.copy(hasPlayed = true)
         _homeData.update { it.copy(maxMessage = updated) }
-        saveMaxMessage(context, updated)
+        saveMaxMessage(updated)
+        Log.d("DesiMaxDebug", "Marked max message as played")
     }
 
     fun startTracking() {
         if (!_homeData.value.isTracking) {
-            Log.d("HomeViewModel", "Starting tracking")
+            Log.d("DesiMaxDebug", "Starting tracking")
             _homeData.update { it.copy(isTracking = true) }
         }
     }
 
     fun stopTracking() {
         if (_homeData.value.isTracking) {
-            Log.d("HomeViewModel", "Stopping tracking")
+            Log.d("DesiMaxDebug", "Stopping tracking")
             _homeData.update { it.copy(isTracking = false) }
         }
     }
@@ -169,6 +325,7 @@ class HomeViewModel(
 data class HomeData(
     val watchSteps: Float,
     val manualSteps: Float,
+    val trackedSteps: Float,
     val stepGoal: Float,
     val sleepHours: Float,
     val caloriesBurned: Float,
@@ -185,10 +342,23 @@ data class HomeData(
     val storiesOrLeaderboard: List<String>,
     val maxMessage: MaxMessage,
     val isTracking: Boolean,
-    val trackedSteps: Float,
     val dateRangeMode: String,
-    val badges: List<StrapiApi.Badge> = emptyList()
-
+    val badges: List<StrapiApi.Badge>
 )
 
 data class MaxMessage(val yesterday: String, val today: String, val hasPlayed: Boolean)
+
+data class HealthMetrics(
+    val steps: Float,
+    val sleep: Float,
+    val hydration: Float,
+    val heartRate: Float,
+    val calories: Float
+)
+
+data class StateMetrics(
+    val trackedSteps: Float,
+    val bmr: Int,
+    val isTracking: Boolean,
+    val date: LocalDate
+)

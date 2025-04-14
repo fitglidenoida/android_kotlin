@@ -322,7 +322,7 @@
         suspend fun getDesiMessages(
             @Query("populate") populate: String = "*",
             @Header("Authorization") token: String
-        ): Response<DesiMessageListResponse>
+        ): Response<DesiMessageResponse>
 
         @GET("badges")
         suspend fun getBadges(
@@ -342,6 +342,7 @@
             val steps: Long?,
             val waterIntake: Float?,
             val heartRate: Long?,
+            val caloriesBurned: Float? = null, // New field
             val source: String?,
             @SerializedName("users_permissions_user") val usersPermissionsUser: UserId?
         )
@@ -353,6 +354,7 @@
             val steps: Long?,
             val waterIntake: Float?,
             val heartRate: Long?, // Changed to Long? to match biginteger
+            val caloriesBurned: Float? = null, // New field
             val source: String?,
             @SerializedName("users_permissions_user") val usersPermissionsUser: UserId?,
             val createdAt: String?
@@ -708,37 +710,94 @@
             val expires_at: Long
         )
 
-        data class DesiMessageListResponse(val data: List<DesiMessage>)
-        data class DesiMessage(
-            val id: String,
-            val attributes: DesiMessageAttributes
+        data class DesiMessageResponse(
+            val data: List<DesiMessage>,
+            val meta: Meta
         )
 
-        data class DesiMessageAttributes(
-            val title: String,
+        data class DesiMessage(
+            val id: Int,
+            @SerializedName("documentId") val documentId: String,
+            @SerializedName("title") val title: String?,
             @SerializedName("yesterday_line") val yesterdayLine: String,
             @SerializedName("today_line") val todayLine: String,
-            val badge: String,
-            @SerializedName("language_style") val languageStyle: String,
-            @SerializedName("is_premium") val isPremium: Boolean
+            @SerializedName("badge") val badge: String?,
+            @SerializedName("language_style") val languageStyle: String?,
+            @SerializedName("is_premium") val isPremium: Boolean?,
+            @SerializedName("createdAt") val createdAt: String?,
+            @SerializedName("updatedAt") val updatedAt: String?,
+            @SerializedName("publishedAt") val publishedAt: String?
         )
 
-        data class BadgeListResponse(val data: List<Badge>)
+        data class Meta(
+            val pagination: Pagination
+        )
+
+        data class Pagination(
+            val page: Int,
+            val pageSize: Int,
+            val pageCount: Int,
+            val total: Int
+        )
+
+        data class BadgeListResponse(val data: List<BadgeEntry>)
+        data class BadgeEntry(
+            val id: Int,
+            val documentId: String,
+            val name: String,
+            val description: String,
+            val createdAt: String?,
+            val updatedAt: String?,
+            val publishedAt: String?,
+            val icon: Media? = null
+        )
+
         data class Badge(
             val id: Int,
             val title: String,
             val description: String,
-            val iconUrl: String
+            val iconUrl: String? // Nullable for missing icons
         )
 
-//        data class BadgeAttributes(
-//            val name: String,
-//            val description: String,
-//            val icon: Media?
-//        )
-
         data class Media(
-            val data: MediaData?
+            val id: Int,
+            val documentId: String,
+            val name: String,
+            val alternativeText: String?,
+            val caption: String?,
+            val width: Int,
+            val height: Int,
+            val formats: MediaFormats?,
+            val hash: String,
+            val ext: String,
+            val mime: String,
+            val size: Float,
+            val url: String,
+            val previewUrl: String?,
+            val provider: String,
+            val provider_metadata: String?,
+            val createdAt: String?,
+            val updatedAt: String?
+        )
+
+        data class MediaFormats(
+            val large: MediaFormat?,
+            val medium: MediaFormat?,
+            val small: MediaFormat?,
+            val thumbnail: MediaFormat?
+        )
+
+        data class MediaFormat(
+            val ext: String,
+            val url: String,
+            val hash: String,
+            val mime: String,
+            val name: String,
+            val path: String?,
+            val size: Float,
+            val width: Int,
+            val height: Int,
+            val sizeInBytes: Int
         )
 
         data class MediaData(

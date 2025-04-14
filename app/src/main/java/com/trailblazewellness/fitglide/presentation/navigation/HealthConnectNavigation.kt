@@ -60,7 +60,7 @@ fun HealthConnectNavigation(
     val formattedAuthToken = "Bearer $authToken"
     val healthConnectRepository = HealthConnectRepository(healthConnectManager)
 
-    val homeViewModel = HomeViewModel(commonViewModel)
+    val homeViewModel = HomeViewModel(commonViewModel, context) // Pass context
     val profileViewModel = ProfileViewModel(strapiRepository, authRepository, healthConnectRepository)
     val sleepViewModel = SleepViewModel(healthConnectManager, strapiRepository, authRepository)
     val mealsViewModel = MealsViewModel(strapiRepository, healthConnectRepository, authRepository)

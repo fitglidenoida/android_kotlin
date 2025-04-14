@@ -100,9 +100,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Step 3: Background Setup (Defer heavy stuff)
+        // Step 3: Background Setup
         lifecycleScope.launch {
-            delay(3000) // Let UI settle
             setupBackgroundTasks()
         }
 
@@ -116,10 +115,10 @@ class MainActivity : ComponentActivity() {
         strapiRepository = StrapiRepository(authRepository.strapiApi, authRepository)
 
         commonViewModel = CommonViewModel(this, strapiRepository, healthConnectManager, authRepository)
-        homeViewModel = HomeViewModel(commonViewModel)
+        homeViewModel = HomeViewModel(commonViewModel, this) // Pass context
         MainActivity.commonViewModel = commonViewModel
 
-        MaxAiService.initTTS(this) // Safe to init early, just don’t speak here
+//        MaxAiService.initTTS(this)
     }
 
     private fun setupBackgroundTasks() {
