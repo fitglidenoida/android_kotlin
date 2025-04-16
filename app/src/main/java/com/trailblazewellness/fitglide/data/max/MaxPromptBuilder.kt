@@ -78,7 +78,7 @@ Hydration: $hydration
         Line 2: Fire up motivation for today.
 
         Example:
-        Line 1: Arre $name bhai, kal ke $steps steps toh kya kamaal the! 💥  
+        Line 1: Arre $name bhai, kal ke $steps steps toh kya kamaal the! 💥
         Line 2: Aaj ka target tod daalo, dal-roti power active karo! 🍛💪
     """.trimIndent()
     }

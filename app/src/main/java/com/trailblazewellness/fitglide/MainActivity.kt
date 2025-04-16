@@ -115,7 +115,7 @@ class MainActivity : ComponentActivity() {
         strapiRepository = StrapiRepository(authRepository.strapiApi, authRepository)
 
         commonViewModel = CommonViewModel(this, strapiRepository, healthConnectManager, authRepository)
-        homeViewModel = HomeViewModel(commonViewModel, this) // Pass context
+        homeViewModel = HomeViewModel(commonViewModel, this, healthConnectManager) // Pass context
         MainActivity.commonViewModel = commonViewModel
 
 //        MaxAiService.initTTS(this)

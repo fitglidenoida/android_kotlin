@@ -23,6 +23,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.trailblazewellness.fitglide.FitGlideTheme
 import com.trailblazewellness.fitglide.auth.AuthRepository
+import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.api.StrapiRepository
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectRepository
@@ -37,9 +38,12 @@ import com.trailblazewellness.fitglide.presentation.profile.ProfileViewModel
 import com.trailblazewellness.fitglide.presentation.sleep.SleepScreen
 import com.trailblazewellness.fitglide.presentation.sleep.SleepViewModel
 import com.trailblazewellness.fitglide.presentation.social.ChallengeDetailScreen
+import com.trailblazewellness.fitglide.presentation.strava.StravaAuthViewModel
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
-import com.trailblazewellness.fitglide.presentation.workout.WorkoutScreen
-import com.trailblazewellness.fitglide.presentation.workout.WorkoutViewModel
+import com.trailblazewellness.fitglide.presentation.workouts.WorkoutScreen
+import com.trailblazewellness.fitglide.presentation.workouts.WorkoutViewModel
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +64,7 @@ fun HealthConnectNavigation(
     val formattedAuthToken = "Bearer $authToken"
     val healthConnectRepository = HealthConnectRepository(healthConnectManager)
 
-    val homeViewModel = HomeViewModel(commonViewModel, context) // Pass context
+    val homeViewModel = HomeViewModel(commonViewModel, context, healthConnectManager)
     val profileViewModel = ProfileViewModel(strapiRepository, authRepository, healthConnectRepository)
     val sleepViewModel = SleepViewModel(healthConnectManager, strapiRepository, authRepository)
     val mealsViewModel = MealsViewModel(strapiRepository, healthConnectRepository, authRepository)
@@ -70,6 +74,16 @@ fun HealthConnectNavigation(
         homeViewModel = homeViewModel,
         authToken = formattedAuthToken,
         userId = authRepository.getAuthState().getId().toString()
+    )
+    // Create StravaAuthViewModel manually (non-Hilt)
+    val stravaAuthViewModel = StravaAuthViewModel(
+        strapiApi = Retrofit.Builder()
+            .baseUrl("https://admin.fitglide.in/")
+            .addConverterFactory(GsonConverterFactory.create())
+            .build()
+            .create(StrapiApi::class.java),
+        commonViewModel = commonViewModel,
+        context = context
     )
 
     FitGlideTheme {
@@ -166,7 +180,8 @@ fun HealthConnectNavigation(
                             navController = navController,
                             rootNavController = rootNavController,
                             profileViewModel = profileViewModel,
-                            homeViewModel = homeViewModel
+                            homeViewModel = homeViewModel,
+                            stravaAuthViewModel = stravaAuthViewModel
                         )
                     }
                     composable("settings") {
@@ -179,13 +194,11 @@ fun HealthConnectNavigation(
                         val postId = backStackEntry.arguments?.getString("postId") ?: return@composable
                         PostDetailScreen(postId, commonViewModel, navController)
                     }
-
                     composable("challengeDetail/{challengeId}") { backStackEntry ->
                         val challengeId = backStackEntry.arguments?.getString("challengeId") ?: return@composable
                         val userId = authRepository.authStateFlow.collectAsState().value.getId() ?: ""
                         ChallengeDetailScreen(challengeId, commonViewModel, navController, userId)
                     }
-
                 }
             }
         }

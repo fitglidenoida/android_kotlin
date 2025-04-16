@@ -22,7 +22,7 @@ class StrapiRepository(
         steps: Long,
         hydration: Float,
         heartRate: Long?,
-        caloriesBurned: Float?, // Added parameter
+        caloriesBurned: Float?,
         source: String,
         token: String
     ): Response<StrapiApi.HealthLogResponse> {
@@ -32,7 +32,7 @@ class StrapiRepository(
             steps = steps,
             waterIntake = hydration,
             heartRate = heartRate,
-            caloriesBurned = caloriesBurned, // Include new field
+            caloriesBurned = caloriesBurned,
             source = source,
             usersPermissionsUser = StrapiApi.UserId(userId)
         )
@@ -184,33 +184,47 @@ class StrapiRepository(
     }
 
     // Workout Logs
-    suspend fun syncWorkoutLog(
-        log: StrapiApi.WorkoutLogRequest,
-        token: String
-    ): Response<StrapiApi.WorkoutLogResponse> {
+    suspend fun syncWorkoutLog(log: StrapiApi.WorkoutLogRequest, token: String): Response<StrapiApi.WorkoutLogResponse> {
         val body = StrapiApi.WorkoutLogBody(log)
         Log.d(TAG, "Syncing workout log: $body with token: $token")
 
-        val existingLogs = getWorkoutLogs(log.usersPermissionsUser.id ?: "unknown", log.startTime.split("T")[0], token)
-        return if (existingLogs.isSuccessful && existingLogs.body()?.data?.isNotEmpty() == true) {
-            val logId = existingLogs.body()!!.data.first().id
-            Log.d(TAG, "Updating existing workout log with id: $logId")
-            strapiApi.updateWorkoutLog(logId, body, token).also { response ->
-                logResponse("updateWorkoutLog", response)
+        val dateStr = log.startTime.split("T")[0]
+        val filters = mapOf(
+            "filters[users_permissions_user][id][\$eq]" to (log.usersPermissionsUser.id ?: "unknown"),
+            "filters[startTime][\$gte]" to "${dateStr}T00:00:00.000Z",
+            "filters[startTime][\$lte]" to "${dateStr}T23:59:59.999Z"
+        )
+        Log.d(TAG, "Checking existing workout logs with filters: $filters")
+        val existingLogs = strapiApi.getWorkoutLogs(filters, token)
+        if (existingLogs.isSuccessful && existingLogs.body()?.data?.isNotEmpty() == true) {
+            val existingLog = existingLogs.body()!!.data.find {
+                it.startTime == log.startTime || it.logId.startsWith("wearable_${dateStr}")
             }
-        } else {
-            Log.d(TAG, "Posting new workout log")
-            strapiApi.postWorkoutLog(body, token).also { response ->
-                logResponse("postWorkoutLog", response)
+            if (existingLog != null) {
+                Log.d(TAG, "Updating existing workout log with documentId: ${existingLog.documentId}")
+                return strapiApi.updateWorkoutLog(existingLog.documentId, body, token).also { response ->
+                    Log.d(TAG, "updateWorkoutLog: success=${response.isSuccessful}, code=${response.code()}, body=${response.body()?.toString()}")
+                }
             }
+        } else if (!existingLogs.isSuccessful) {
+            Log.w(TAG, "Failed to fetch logs for deduplication: ${existingLogs.code()} - ${existingLogs.errorBody()?.string()}")
+            return Response.success(null) // Skip sync to avoid duplicates
+        }
+        Log.d(TAG, "Posting new workout log")
+        return strapiApi.postWorkoutLog(body, token).also { response ->
+            Log.d(TAG, "postWorkoutLog: success=${response.isSuccessful}, code=${response.code()}, body=${response.body()?.toString()}")
         }
     }
 
     suspend fun getWorkoutLogs(userId: String, date: String, token: String): Response<StrapiApi.WorkoutLogListResponse> {
-        val filters = mapOf("filters[users_permissions_user][id][\$eq]" to userId)
+        val filters = mapOf(
+            "filters[users_permissions_user][id][\$eq]" to userId,
+            "filters[startTime][\$gte]" to "${date}T00:00:00.000Z",
+            "filters[startTime][\$lte]" to "${date}T23:59:59.999Z"
+        )
         Log.d(TAG, "Fetching workout logs with filters: $filters, token: $token")
         return strapiApi.getWorkoutLogs(filters, token).also { response ->
-            logResponse("getWorkoutLogs", response)
+            Log.d(TAG, "getWorkoutLogs: success=${response.isSuccessful}, code=${response.code()}, body=${response.body()?.toString()}")
         }
     }
 

@@ -5,8 +5,10 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.trailblazewellness.fitglide.data.api.StrapiApi
+import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
 import com.trailblazewellness.fitglide.data.max.MaxAiService
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,39 +21,36 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.random.Random
+import javax.inject.Inject
 
-class HomeViewModel(
+class HomeViewModel @Inject constructor(
     private val commonViewModel: CommonViewModel,
-    private val context: Context
+    @ApplicationContext private val context: Context,
+    private val healthConnectManager: HealthConnectManager
 ) : ViewModel() {
     private val sharedPreferences =
         context.getSharedPreferences("fitglide_prefs", Context.MODE_PRIVATE)
 
     private val _homeData = MutableStateFlow(
         HomeData(
-            watchSteps = sharedPreferences.getFloat("steps", 0f),
+            watchSteps = 0f,
             manualSteps = 0f,
-            trackedSteps = sharedPreferences.getFloat("trackedSteps", 0f),
-            stepGoal = sharedPreferences.getFloat("stepGoal", 11000f),
-            sleepHours = sharedPreferences.getFloat("sleepHours", 0f),
-            caloriesBurned = sharedPreferences.getFloat("caloriesBurned", 0f),
-            heartRate = sharedPreferences.getFloat("heartRate", 0f),
+            trackedSteps = 0f,
+            stepGoal = 11000f,
+            sleepHours = 0f,
+            caloriesBurned = 0f,
+            heartRate = 0f,
             maxHeartRate = 200f,
-            hydration = sharedPreferences.getFloat("hydration", 0f),
+            hydration = 0f,
             caloriesLogged = 0f,
             weightLost = 0f,
-            bmr = sharedPreferences.getInt("bmr", 2000),
+            bmr = 2000,
             stressScore = "Low",
             challengeOrAnnouncement = "Weekly Step Challenge!",
             streak = 0,
             showStories = true,
             storiesOrLeaderboard = listOf("User: 10K steps"),
-            maxMessage = MaxMessage(
-                "",
-                "",
-                false
-            ),
+            maxMessage = MaxMessage("", "", false),
             isTracking = false,
             dateRangeMode = "Day",
             badges = emptyList()
@@ -60,18 +59,32 @@ class HomeViewModel(
     val homeData: StateFlow<HomeData> = _homeData.asStateFlow()
 
     private val _fetchedBadges = MutableStateFlow<List<StrapiApi.Badge>>(emptyList())
-    private val hasFetchedMessages = AtomicBoolean(false) // Thread-safe single fetch
+    private val hasFetchedMessages = AtomicBoolean(false)
 
     init {
         Log.d("DesiMaxDebug", "HomeViewModel initialized")
+        clearSharedPreferences()
         fetchDesiMessagesAndBadges()
+    }
+
+    private fun clearSharedPreferences() {
+        sharedPreferences.edit().apply {
+            remove("steps")
+            remove("trackedSteps")
+            remove("sleepHours")
+            remove("caloriesBurned")
+            remove("heartRate")
+            remove("hydration")
+            remove("bmr")
+            apply()
+        }
+        Log.d("DesiMaxDebug", "Cleared SharedPreferences for metrics")
     }
 
     fun initializeWithContext() {
         Log.d("DesiMaxDebug", "🚀 initializeWithContext triggered")
 
         viewModelScope.launch {
-            // Clear SharedPreferences for max message state
             sharedPreferences.edit().apply {
                 remove("max_hasPlayed")
                 remove("max_yesterday")
@@ -80,7 +93,6 @@ class HomeViewModel(
             }
             Log.d("DesiMaxDebug", "Cleared max message SharedPreferences")
 
-            // Combine flows for health and state metrics
             val healthFlow = combine(
                 commonViewModel.steps,
                 commonViewModel.sleepHours,
@@ -118,6 +130,64 @@ class HomeViewModel(
         }
     }
 
+    suspend fun refreshData() {
+        Log.d("DesiMaxDebug", "Refreshing home data")
+        try {
+            val date = LocalDate.now()
+            val steps = healthConnectManager.readSteps(date).toFloat()
+            val sleep = healthConnectManager.readSleepSessions(date).total.toHours().toFloat()
+            val hydrationRecords = healthConnectManager.readHydrationRecords(
+                date.atStartOfDay().toInstant(java.time.ZoneOffset.UTC),
+                date.atTime(23, 59, 59).toInstant(java.time.ZoneOffset.UTC)
+            )
+            val hydration = hydrationRecords.sumOf { record -> record.volume.inLiters }.toFloat()
+            val heartRate = healthConnectManager.readDailyHeartRate(date)?.toFloat() ?: 0f
+            val calories = healthConnectManager.readExerciseSessions(date).calories?.toFloat() ?: 0f
+
+            _homeData.update {
+                it.copy(
+                    watchSteps = steps,
+                    sleepHours = sleep,
+                    hydration = hydration,
+                    heartRate = heartRate,
+                    caloriesBurned = calories
+                )
+            }
+
+            val token = commonViewModel.getAuthRepository().getAuthState().jwt
+            if (!token.isNullOrBlank()) {
+                val authToken = "Bearer $token"
+                val badgesResponse = withTimeoutOrNull(10000L) {
+                    withContext(Dispatchers.IO) {
+                        commonViewModel.getStrapiRepository().getBadges(authToken)
+                    }
+                }
+                if (badgesResponse?.isSuccessful == true) {
+                    val fetchedBadges = badgesResponse.body()?.data ?: emptyList()
+                    val mappedBadges = fetchedBadges.mapNotNull { badge ->
+                        val iconUrl = badge.icon?.url?.let { url ->
+                            if (url.startsWith("http")) url else "https://admin.fitglide.in$url"
+                        }
+                        iconUrl?.let {
+                            StrapiApi.Badge(
+                                id = badge.id,
+                                title = badge.name,
+                                description = badge.description,
+                                iconUrl = it
+                            )
+                        }
+                    }
+                    _fetchedBadges.value = mappedBadges
+                }
+            }
+
+            Log.d("DesiMaxDebug", "Refresh complete: steps=$steps, sleep=$sleep, hydration=$hydration")
+        } catch (e: Exception) {
+            Log.e("DesiMaxDebug", "Refresh failed: ${e.message}", e)
+            commonViewModel.postUiMessage("Failed to refresh data: ${e.message}")
+        }
+    }
+
     private fun fetchDesiMessagesAndBadges() {
         if (hasFetchedMessages.getAndSet(true)) {
             Log.d("DesiMaxDebug", "Skipping duplicate desi messages fetch")
@@ -126,17 +196,14 @@ class HomeViewModel(
 
         viewModelScope.launch {
             Log.d("DesiMaxDebug", "Entering desi messages coroutine")
-            // Delay to stabilize navigation
             delay(1000L)
             Log.d("DesiMaxDebug", "Starting desi messages fetch after delay")
 
-            // Fetch JWT from authRepository
             val token = commonViewModel.getAuthRepository().getAuthState().jwt
             Log.d("DesiMaxDebug", "JWT token from authRepository: ${token ?: "null"}")
             if (token.isNullOrBlank()) {
                 Log.e("DesiMaxDebug", "JWT token is null or blank, cannot fetch desi messages")
                 commonViewModel.postUiMessage("Please log in to see Max's messages!")
-                // Use fallback message
                 val updatedMax = MaxMessage(
                     "Arre kal thoda slow tha yaar 😅 Aaj full josh mein jaa! 💪",
                     "Naya din, naya chance — thoda sweat bahao Boss! 🔥",
@@ -151,7 +218,6 @@ class HomeViewModel(
             val authToken = "Bearer $token"
             Log.d("DesiMaxDebug", "Fetching desi messages with token: $authToken")
 
-            // Fetch desi messages with retry
             var messages: List<StrapiApi.DesiMessage> = emptyList()
             for (attempt in 1..2) {
                 try {
@@ -184,7 +250,6 @@ class HomeViewModel(
                 if (attempt < 2) delay(2000L)
             }
 
-            // Process messages
             if (messages.isNotEmpty()) {
                 val randomMsg = messages.random()
                 val yesterdayMsg = randomMsg.yesterdayLine
@@ -210,7 +275,6 @@ class HomeViewModel(
                 saveMaxMessage(updatedMax)
             }
 
-            // Fetch badges
             try {
                 Log.d("DesiMaxDebug", "Fetching badges")
                 val badgesResponse = withTimeoutOrNull(10000L) {
@@ -229,9 +293,6 @@ class HomeViewModel(
                     val mappedBadges = fetchedBadges.mapNotNull { badge ->
                         val iconUrl = badge.icon?.url?.let { url ->
                             if (url.startsWith("http")) url else "https://admin.fitglide.in$url"
-                        } ?: run {
-                            Log.w("DesiMaxDebug", "Badge ${badge.name} has no icon, skipping")
-                            null
                         }
                         iconUrl?.let {
                             StrapiApi.Badge(
@@ -269,8 +330,8 @@ class HomeViewModel(
                 "Josh Machine" -> if (totalSteps > 8000 && data.caloriesBurned > 450 && data.sleepHours > 7) {
                     earnedBadges.add(badge)
                 }
-                "Cycle Rani" -> if (totalSteps >= 5000) earnedBadges.add(badge) // Placeholder
-                "Max Ka Dost" -> if (data.streak >= 7) earnedBadges.add(badge) // Placeholder
+                "Cycle Rani" -> if (totalSteps >= 5000) earnedBadges.add(badge)
+                "Max Ka Dost" -> if (data.streak >= 7) earnedBadges.add(badge)
             }
         }
 

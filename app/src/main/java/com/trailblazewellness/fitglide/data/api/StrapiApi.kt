@@ -74,9 +74,9 @@
             @Header("Authorization") token: String
         ): Response<WorkoutLogResponse>
 
-        @PUT("workout-logs/{id}")
+        @PUT("workout-logs/{documentId}")
         suspend fun updateWorkoutLog(
-            @Path("id") id: String,
+            @Path("documentId") documentId: String,
             @Body body: WorkoutLogBody,
             @Header("Authorization") token: String
         ): Response<WorkoutLogResponse>
@@ -85,7 +85,7 @@
         suspend fun getWorkoutLogs(
             @QueryMap filters: Map<String, String>,
             @Header("Authorization") token: String,
-            @Header("Content-Type") contentType: String = "application/json", // Keep headers
+            @Header("Content-Type") contentType: String = "application/json",
             @Header("Accept") accept: String = "application/json"
         ): Response<WorkoutLogListResponse>
 
@@ -422,9 +422,9 @@
         data class WorkoutLogBody(val data: WorkoutLogRequest)
         data class WorkoutLogRequest(
             val logId: String,
-            val workout: UserId, // Changed to UserId to avoid conflict with WorkoutId
-            @SerializedName("startTime") val startTime: String,
-            @SerializedName("endTime") val endTime: String,
+            val workout: UserId?,
+            val startTime: String,
+            val endTime: String,
             @SerializedName("Distance") val distance: Float,
             @SerializedName("TotalTime") val totalTime: Float,
             @SerializedName("Calories") val calories: Float,
@@ -440,10 +440,11 @@
         data class WorkoutLogListResponse(val data: List<WorkoutLogEntry>)
         data class WorkoutLogEntry(
             val id: String,
-            @SerializedName("logId") val logId: String,
-            val workout: UserId, // Changed to UserId to avoid conflict with WorkoutId
-            @SerializedName("startTime") val startTime: String,
-            @SerializedName("endTime") val endTime: String,
+            val documentId: String,
+            val logId: String,
+            val workout: UserId?,
+            val startTime: String,
+            val endTime: String,
             @SerializedName("Distance") val distance: Float?,
             @SerializedName("TotalTime") val totalTime: Float?,
             @SerializedName("Calories") val calories: Float?,

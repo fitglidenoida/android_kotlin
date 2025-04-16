@@ -39,6 +39,7 @@ firebase-messaging-ktx = "24.1.1"
 work-runtime-ktx = "2.9.0"
 datastore-core-android = "1.1.4"
 core-ktx = "1.13.0"
+browser = "1.8.0"
 
 [libraries]
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "compose-bom" }
@@ -84,6 +85,7 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 firebase-messaging-ktx = { group = "com.google.firebase", name = "firebase-messaging-ktx", version.ref = "firebase-messaging-ktx" }
 androidx-datastore-core-android = { group = "androidx.datastore", name = "datastore-core-android", version.ref = "datastore-core-android" }
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
+androidx-browser = { module = "androidx.browser:browser", version.ref = "browser" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "android-gradle" }

@@ -98,6 +98,7 @@ dependencies {
     implementation (libs.hilt.android)
     implementation (libs.androidx.work.runtime.ktx.v290)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
+    implementation(libs.androidx.browser)
 
     // Force resolution to 23.0.0 and exclude older versions
     configurations.all {

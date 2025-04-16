@@ -1,21 +1,15 @@
-package com.trailblazewellness.fitglide.presentation.workout
+package com.trailblazewellness.fitglide.presentation.workouts
 
 import android.annotation.SuppressLint
 import android.util.Log
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.scaleIn
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -27,7 +21,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -51,9 +44,8 @@ fun WorkoutScreen(
     var showDetails by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
 
-    // Log workoutData for debugging
     LaunchedEffect(workoutData) {
-        Log.d("WorkoutScreen", "WorkoutData: steps=${workoutData.steps}, heartRate=${workoutData.heartRate}, caloriesBurned=${workoutData.caloriesBurned}, schedule.size=${workoutData.schedule.size}")
+        Log.d("WorkoutDebug", "WorkoutData: steps=${workoutData.steps}, heartRate=${workoutData.heartRate}, caloriesBurned=${workoutData.caloriesBurned}, schedule.size=${workoutData.schedule.size}")
     }
 
     FitGlideTheme {
@@ -66,7 +58,6 @@ fun WorkoutScreen(
                     .verticalScroll(scrollState),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Greeting
                 Text(
                     text = "Hey $userName, Power Up!",
                     fontSize = 24.sp,
@@ -75,7 +66,6 @@ fun WorkoutScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
-                // Date
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.Center,
@@ -95,14 +85,21 @@ fun WorkoutScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Steps Circle
+                // Debug Schedule Size
+                Text(
+                    text = "Schedule Size: ${workoutData.schedule.size}",
+                    fontSize = 14.sp,
+                    color = Color(0xFF757575)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Canvas(modifier = Modifier.size(180.dp)) {
                         val radius = size.width / 2 - 10.dp.toPx()
                         drawArc(
                             color = Color(0xFF4CAF50),
                             startAngle = -90f,
-                            sweepAngle = 360f * (workoutData.steps / 10000f), // Max 10K steps
+                            sweepAngle = 360f * (workoutData.steps / 10000f),
                             useCenter = false,
                             topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                             size = Size(radius * 2, radius * 2),
@@ -114,19 +111,17 @@ fun WorkoutScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Stats (HR, Calories, Stress)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
-                    // Heart Rate
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Canvas(modifier = Modifier.size(80.dp)) {
                             val radius = size.width / 2 - 10.dp.toPx()
                             drawArc(
                                 color = Color(0xFFFF5722),
                                 startAngle = -90f,
-                                sweepAngle = 360f * (workoutData.heartRate / 200f), // Max 200 BPM
+                                sweepAngle = 360f * (workoutData.heartRate / 200f),
                                 useCenter = false,
                                 topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                                 size = Size(radius * 2, radius * 2),
@@ -136,14 +131,13 @@ fun WorkoutScreen(
                         Text("${workoutData.heartRate.toInt()}", fontSize = 16.sp, color = Color(0xFF212121))
                         Text("BPM", fontSize = 12.sp, color = Color(0xFF757575))
                     }
-                    // Calories Burned
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Canvas(modifier = Modifier.size(80.dp)) {
                             val radius = size.width / 2 - 10.dp.toPx()
                             drawArc(
                                 color = Color(0xFF9C27B0),
                                 startAngle = -90f,
-                                sweepAngle = 360f * (workoutData.caloriesBurned / 500f), // Max 500 cal
+                                sweepAngle = 360f * (workoutData.caloriesBurned / 500f),
                                 useCenter = false,
                                 topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                                 size = Size(radius * 2, radius * 2),
@@ -153,14 +147,13 @@ fun WorkoutScreen(
                         Text("${workoutData.caloriesBurned.toInt()}", fontSize = 16.sp, color = Color(0xFF212121))
                         Text("Cal", fontSize = 12.sp, color = Color(0xFF757575))
                     }
-                    // Stress Score (Stubbed)
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Canvas(modifier = Modifier.size(80.dp)) {
                             val radius = size.width / 2 - 10.dp.toPx()
                             drawArc(
                                 color = Color(0xFF00C4B4),
                                 startAngle = -90f,
-                                sweepAngle = 360f * 0.3f, // Stubbed Low
+                                sweepAngle = 360f * 0.3f,
                                 useCenter = false,
                                 topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                                 size = Size(radius * 2, radius * 2),
@@ -173,7 +166,6 @@ fun WorkoutScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Goal Picker
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -189,7 +181,6 @@ fun WorkoutScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Current Workout Card
                 Text(
                     text = "Current Workout",
                     fontSize = 18.sp,
@@ -197,7 +188,7 @@ fun WorkoutScreen(
                     color = Color(0xFF212121)
                 )
                 val currentWorkout = workoutData.schedule.firstOrNull {
-                    it.date == workoutData.selectedDate && it.type == workoutData.selectedGoal
+                    it.date == workoutData.selectedDate && it.type == workoutData.selectedGoal && it.moves.any { !it.isCompleted }
                 }
                 if (currentWorkout != null) {
                     Surface(
@@ -243,7 +234,7 @@ fun WorkoutScreen(
                     }
                 } else {
                     Text(
-                        text = "No workout scheduled",
+                        text = "No active workout scheduled",
                         fontSize = 16.sp,
                         color = Color(0xFF757575),
                         modifier = Modifier.padding(16.dp)
@@ -251,17 +242,22 @@ fun WorkoutScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Active Workout Card
-                val activeWorkout = workoutData.schedule.firstOrNull {
-                    it.date == workoutData.selectedDate &&
-                            it.type == workoutData.selectedGoal &&
-                            it.moves.any { !it.isCompleted }
+                Text(
+                    text = "Workout Log",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF212121)
+                )
+                val workoutsForDate = workoutData.schedule.filter {
+                    it.date == workoutData.selectedDate && it.type == workoutData.selectedGoal
                 }
-                if (activeWorkout != null) {
-                    WorkoutCard(activeWorkout, viewModel, workoutData.schedule.indexOf(activeWorkout))
+                if (workoutsForDate.isNotEmpty()) {
+                    workoutsForDate.forEach { workout ->
+                        WorkoutCard(workout, viewModel, workoutData.schedule.indexOf(workout))
+                    }
                 } else {
                     Text(
-                        text = "All Workouts Done",
+                        text = "No workouts logged for this date. Check Health Connect permissions if expected.",
                         fontSize = 16.sp,
                         color = Color(0xFF757575),
                         modifier = Modifier.padding(16.dp)
@@ -269,7 +265,6 @@ fun WorkoutScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Insights Card
                 Text(
                     text = "Insights",
                     fontSize = 18.sp,
@@ -295,7 +290,6 @@ fun WorkoutScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Challenges + Streak
                 Text(
                     text = "Challenges",
                     fontSize = 18.sp,
@@ -368,7 +362,6 @@ fun WorkoutScreen(
                 }
             }
 
-            // Workout Details Overlay
             if (showDetails) {
                 WorkoutDetailsOverlay(workoutData, { showDetails = false })
             }
@@ -409,7 +402,12 @@ fun WorkoutCard(slot: WorkoutSlot, viewModel: WorkoutViewModel, workoutIndex: In
                         modifier = Modifier.size(36.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("${slot.type} - ${slot.time}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121))
+                    Text(
+                        "${slot.type} - ${slot.time}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF212121)
+                    )
                 }
                 Text(
                     "HR: ${viewModel.workoutData.value.heartRate.toInt()}",
@@ -461,136 +459,7 @@ fun WorkoutCard(slot: WorkoutSlot, viewModel: WorkoutViewModel, workoutIndex: In
 }
 
 @Composable
-fun DailySchedule(schedule: List<WorkoutSlot>, viewModel: WorkoutViewModel) {
-    LazyColumn(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(100.dp)
-    ) {
-        items(schedule) { slot ->
-            Surface(
-                shape = RoundedCornerShape(4.dp),
-                color = if (slot.moves.all { it.isCompleted }) Color(0xFFE8F5E9) else Color(0xFFFFF3E0),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp)
-                    .clickable { /* TODO: Jump to workout in card */ }
-            ) {
-                Row(
-                    modifier = Modifier
-                        .padding(8.dp)
-                        .fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row {
-                        Icon(
-                            imageVector = when (slot.type) {
-                                "Strength" -> Icons.Default.FitnessCenter
-                                "Cardio" -> Icons.AutoMirrored.Filled.DirectionsRun
-                                "Flex" -> Icons.Default.SelfImprovement
-                                else -> Icons.Default.FitnessCenter
-                            },
-                            contentDescription = "Workout Type",
-                            tint = Color(0xFF4CAF50),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("${slot.type} - ${slot.time}", fontSize = 14.sp, color = Color(0xFF212121))
-                    }
-                    Text(
-                        if (slot.moves.all { it.isCompleted }) "Completed" else "Pending",
-                        fontSize = 12.sp,
-                        color = if (slot.moves.all { it.isCompleted }) Color(0xFF4CAF50) else Color(0xFFFF5722)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun QuestCard(goal: String, progress: Float) {
-    Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = Color(0xFFFFF3E0),
-        modifier = Modifier
-            .width(200.dp)
-            .padding(vertical = 8.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(goal, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121))
-            Text("${progress.toInt()}g", fontSize = 12.sp, color = Color(0xFF757575))
-        }
-    }
-}
-
-@Composable
-fun RecipeCarousel() {
-    LazyRow(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(listOf("Dal", "Roti", "Biryani")) { recipe ->
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = Color(0xFFE8F5E9),
-                modifier = Modifier.width(200.dp)
-            ) {
-                Column(
-                    modifier = Modifier.padding(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(recipe, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121))
-                    Text("300 cal", fontSize = 12.sp, color = Color(0xFF757575))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { /* TODO: Log recipe */ },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Text("Log", color = Color.White, fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun MealsDetailsOverlay(workoutData: WorkoutData, onDismiss: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.7f))
-            .clickable(onClick = onDismiss)
-    ) {
-        Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = Color.White,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(16.dp)
-                .width(300.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Workout Details", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("Calories Burned: ${workoutData.caloriesBurned.toInt()} cal", fontSize = 16.sp)
-                Text("Heart Rate: ${workoutData.heartRate.toInt()} BPM", fontSize = 16.sp)
-                Text("Steps: ${workoutData.steps.toInt()}", fontSize = 16.sp)
-            }
-        }
-    }
-}
-@Composable
-fun WorkoutDetailsOverlay(workoutData: WorkoutData, onDismiss: () -> Unit) {
+fun WorkoutDetailsOverlay(workoutData: WorkoutUiData, onDismiss: () -> Unit) {
     Box(
         modifier = Modifier
             .fillMaxSize()
