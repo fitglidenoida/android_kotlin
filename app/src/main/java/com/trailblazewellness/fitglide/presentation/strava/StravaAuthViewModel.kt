@@ -18,8 +18,8 @@ class StravaAuthViewModel @Inject constructor(
     private val commonViewModel: CommonViewModel,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
-    private val sharedPreferences =
-        context.getSharedPreferences("strava_prefs", Context.MODE_PRIVATE)
+
+    private val sharedPreferences = context.getSharedPreferences("strava_prefs", Context.MODE_PRIVATE)
 
     private val _authState = MutableStateFlow<StravaAuthState>(StravaAuthState.Idle)
     val authState: StateFlow<StravaAuthState> = _authState.asStateFlow()
@@ -51,94 +51,56 @@ class StravaAuthViewModel @Inject constructor(
                     ?: throw IllegalStateException("Please log in to connect Strava")
                 val response = strapiApi.initiateStravaAuth("Bearer $token")
                 if (response.isSuccessful && response.body() != null) {
-                    _authState.value = StravaAuthState.AuthUrl(response.body()!!.redirectUrl)
+                    val redirectUrl = response.body()?.redirectUrl
+                    if (redirectUrl != null) {
+                        _authState.value = StravaAuthState.AuthUrl(redirectUrl)
+                    } else {
+                        _authState.value = StravaAuthState.Error("Failed to get Strava auth URL")
+                    }
                 } else {
-                    _authState.value = StravaAuthState.Error("Failed to get Strava auth URL (Code: ${response.code()})")
+                    _authState.value = StravaAuthState.Error("Failed to initiate Strava auth")
                 }
             } catch (e: Exception) {
-                Log.e("StravaAuthViewModel", "Auth error: ${e.message}", e)
-                _authState.value = StravaAuthState.Error("Unable to connect to Strava: ${e.message}")
+                _authState.value = StravaAuthState.Error("Error initiating Strava auth: ${e.message}")
             }
         }
     }
 
-    fun handleStravaCallback(code: String) {
+    fun syncStravaActivities() {
         viewModelScope.launch {
             _authState.value = StravaAuthState.Loading
             try {
                 val token = commonViewModel.getAuthRepository().getAuthState().jwt
-                    ?: throw IllegalStateException("Please log in to connect Strava")
-                val response = strapiApi.exchangeStravaCode(
-                    StrapiApi.StravaTokenRequest(code),
-                    "Bearer $token"
-                )
+                    ?: throw IllegalStateException("Please log in to sync Strava activities")
+                val response = strapiApi.syncStravaActivities(10, "Bearer $token")
                 if (response.isSuccessful && response.body() != null) {
-                    val tokenResponse = response.body()!!
-                    saveTokens(tokenResponse)
-                    _authState.value = StravaAuthState.Success
-                    _isStravaConnected.value = true
-                    syncActivities() // Auto-sync after connect
+                    val activities = response.body()!!.data // Get the list of StravaActivity
+                    activities.forEach { activity ->
+                        // Log the activity using the correct field, which is `activity_id`
+                        Log.d("StravaActivity", "Activity ID: ${activity.activity_id}")
+                    }
+                    _authState.value = StravaAuthState.Synced(activities.size)
                 } else {
-                    _authState.value = StravaAuthState.Error("Token exchange failed (Code: ${response.code()})")
+                    _authState.value = StravaAuthState.Error("Failed to sync Strava activities")
                 }
             } catch (e: Exception) {
-                Log.e("StravaAuthViewModel", "Token error: ${e.message}", e)
-                _authState.value = StravaAuthState.Error("Unable to exchange token: ${e.message}")
+                _authState.value = StravaAuthState.Error("Error syncing Strava activities: ${e.message}")
             }
         }
     }
-
-    fun syncActivities() {
-        viewModelScope.launch {
-            _authState.value = StravaAuthState.Loading
-            try {
-                val token = commonViewModel.getAuthRepository().getAuthState().jwt
-                    ?: throw IllegalStateException("Please log in to sync Strava")
-                if (!isTokenValid()) {
-                    _authState.value = StravaAuthState.Error("Strava session expired. Please reconnect.")
-                    disconnectStrava()
-                    return@launch
-                }
-                val response = strapiApi.syncStravaActivities(perPage = 10, token = "Bearer $token")
-                if (response.isSuccessful && response.body() != null) {
-                    val count = response.body()!!.data.size
-                    _authState.value = StravaAuthState.Synced(count)
-                } else {
-                    _authState.value = StravaAuthState.Error("Sync failed (Code: ${response.code()})")
-                }
-            } catch (e: Exception) {
-                Log.e("StravaAuthViewModel", "Sync error: ${e.message}", e)
-                _authState.value = StravaAuthState.Error("Unable to sync activities: ${e.message}")
-            }
-        }
-    }
-
-    private fun saveTokens(tokenResponse: StrapiApi.StravaTokenResponse) {
-        sharedPreferences.edit().apply {
-            putString("strava_access_token", tokenResponse.access_token)
-            putString("strava_refresh_token", tokenResponse.refresh_token)
-            putLong("strava_expires_at", tokenResponse.expires_at)
-            apply()
-        }
-        Log.d("StravaAuthViewModel", "Saved tokens: expires_at=${tokenResponse.expires_at}")
-    }
-
-    private fun isTokenValid(): Boolean {
-        val expiresAt = sharedPreferences.getLong("strava_expires_at", 0)
-        val isValid = expiresAt > System.currentTimeMillis() / 1000 + 300 // 5-min buffer
-        Log.d("StravaAuthViewModel", "Token valid: $isValid, expires_at=$expiresAt")
-        return isValid
-    }
-
     fun disconnectStrava() {
-        sharedPreferences.edit().apply {
-            remove("strava_access_token")
-            remove("strava_refresh_token")
-            remove("strava_expires_at")
-            apply()
+        viewModelScope.launch {
+            try {
+                // Clear stored Strava authentication tokens
+                sharedPreferences.edit().remove("strava_access_token").apply()
+                sharedPreferences.edit().remove("strava_expires_at").apply()
+
+                // Update the state to reflect that Strava is disconnected
+                _isStravaConnected.value = false
+                _authState.value = StravaAuthState.Success // Or another appropriate state
+            } catch (e: Exception) {
+                _authState.value = StravaAuthState.Error("Error disconnecting from Strava: ${e.message}")
+            }
         }
-        _isStravaConnected.value = false
-        _authState.value = StravaAuthState.Idle
-        Log.d("StravaAuthViewModel", "Disconnected Strava")
-    }
-}
+
+    }}

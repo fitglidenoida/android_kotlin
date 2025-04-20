@@ -5,9 +5,8 @@ import android.util.Log
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.trailblazewellness.fitglide.auth.AuthRepository
-import com.trailblazewellness.fitglide.data.api.StrapiRepository
+import com.trailblazewellness.fitglide.auth.GoogleAuthManager
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
-import com.trailblazewellness.fitglide.data.max.MaxAiService
 import com.trailblazewellness.fitglide.data.max.MaxPromptBuilder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,11 +23,13 @@ class MaxGreetingWorker(
         try {
             val appContext = applicationContext
 
-            val authRepo = AuthRepository(context = appContext, googleAuthManager = com.trailblazewellness.fitglide.auth.GoogleAuthManager(appContext))
+            // Manual initialization
+            val googleAuthManager = GoogleAuthManager(appContext)
+            val authRepository = AuthRepository(googleAuthManager, appContext)
             val healthManager = HealthConnectManager(appContext)
             val today = LocalDate.now()
 
-            val userName = authRepo.getAuthState().userName ?: "User"
+            val userName = authRepository.getAuthState().userName ?: "User"
             val steps = healthManager.readSteps(today).toFloat()
             val sleep = healthManager.readSleepSessions(today).total.toHours().toFloat()
             val hydrationRecords = healthManager.readHydrationRecords(
@@ -46,8 +47,9 @@ class MaxGreetingWorker(
                 hydration = hydration
             )
 
-            val response = MaxAiService.fetchMaxGreeting(prompt)
-            Log.d(TAG, "Max AI Response: $response")
+            // Placeholder for MaxAiService (undefined)
+            val response = "You crushed it yesterday!\nLet's win today too!" // Mock response
+            Log.d(TAG, "Mock Max AI Response: $response")
 
             val prefs = appContext.getSharedPreferences("max_prefs", Context.MODE_PRIVATE)
             val lines = response.split("\n").filter { it.isNotBlank() }

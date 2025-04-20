@@ -9,13 +9,13 @@ import com.trailblazewellness.fitglide.auth.AuthRepository
 import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.api.StrapiRepository
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
+import com.trailblazewellness.fitglide.data.healthconnect.SleepData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.time.Duration
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.UUID
@@ -30,9 +30,11 @@ class CommonViewModel(
     private val sharedPreferences: SharedPreferences =
         context.getSharedPreferences("fitglide_prefs", Context.MODE_PRIVATE)
 
-    // ... existing StateFlow declarations (steps, sleepHours, etc.)
     private val _steps = MutableStateFlow(sharedPreferences.getFloat("steps", 0f))
     val steps: StateFlow<Float> = _steps.asStateFlow()
+
+    private val _sleepData = MutableStateFlow<SleepData?>(null)
+    val sleepData: StateFlow<SleepData?> = _sleepData.asStateFlow()
 
     private val _sleepHours = MutableStateFlow(sharedPreferences.getFloat("sleepHours", 0f))
     val sleepHours: StateFlow<Float> = _sleepHours.asStateFlow()
@@ -87,7 +89,35 @@ class CommonViewModel(
     fun getAuthRepository(): AuthRepository = authRepository
     fun getStrapiRepository(): StrapiRepository = strapiRepository
 
-    // New function to post UI messages
+    fun updateSteps(steps: Float) {
+        _steps.value = steps
+        sharedPreferences.edit().putFloat("steps", steps).apply()
+        Log.d("CommonViewModel", "Updated steps: $steps")
+    }
+
+    fun updateHydration(hydration: Float) {
+        _hydration.value = hydration
+        sharedPreferences.edit().putFloat("hydration", hydration).apply()
+        Log.d("CommonViewModel", "Updated hydration: $hydration")
+    }
+
+    fun updateHeartRate(heartRate: Float) {
+        _heartRate.value = heartRate
+        sharedPreferences.edit().putFloat("heartRate", heartRate).apply()
+        Log.d("CommonViewModel", "Updated heartRate: $heartRate")
+    }
+
+    fun updateCaloriesBurned(calories: Float) {
+        _caloriesBurned.value = calories
+        sharedPreferences.edit().putFloat("caloriesBurned", calories).apply()
+        Log.d("CommonViewModel", "Updated caloriesBurned: $calories")
+    }
+
+    fun updateIsTracking(isTracking: Boolean) {
+        _isTracking.value = isTracking
+        Log.d("CommonViewModel", "Updated isTracking: $isTracking")
+    }
+
     fun postUiMessage(message: String) {
         viewModelScope.launch {
             _uiMessage.value = message
@@ -107,8 +137,8 @@ class CommonViewModel(
             syncHealthData(token)
             Log.d("CommonViewModel", "Health data synced in ${System.currentTimeMillis() - startTime}ms")
 
-            syncSleepData(token)
-            Log.d("CommonViewModel", "Sleep data synced in ${System.currentTimeMillis() - startTime}ms")
+            syncSleepData()
+            Log.d("CommonViewModel", "Sleep data fetched in ${System.currentTimeMillis() - startTime}ms")
 
             _isLoading.value = false
             Log.d("CommonViewModel", "Loading complete in ${System.currentTimeMillis() - startTime}ms")
@@ -119,7 +149,7 @@ class CommonViewModel(
             }
             launch {
                 resyncPastSleepData(token, 8)
-                Log.d("CommonViewModel", "Past sleep resynced in ${System.currentTimeMillis() - startTime}ms")
+                Log.d("CommonViewModel", "Past sleep fetched in ${System.currentTimeMillis() - startTime}ms")
             }
             launch {
                 while (true) {
@@ -250,33 +280,33 @@ class CommonViewModel(
         }
     }
 
-    suspend fun syncSleepData(token: String) {
-        val sleepDate = _date.value.minusDays(1)
-        val sleepData = healthConnectManager.readSleepSessions(sleepDate)
-        val sleepHours = sleepData.total.toMinutes() / 60f
-
+    suspend fun syncSleepData() {
+        val sleepDate = _date.value
         try {
-            val existingLogsResponse = strapiRepository.fetchSleepLog(sleepDate)
-            if (existingLogsResponse.isSuccessful && existingLogsResponse.body()?.data?.isNotEmpty() == true) {
-                val documentId = existingLogsResponse.body()!!.data.first().documentId
-                val response = strapiRepository.updateSleepLog(documentId, sleepData)
-                if (response.isSuccessful) {
-                    _sleepHours.value = sleepHours
-                    sharedPreferences.edit().putFloat("sleepHours", sleepHours).apply()
-                }
-            } else if (sleepHours > 0) {
-                val response = strapiRepository.syncSleepLog(sleepDate, sleepData)
-                if (response.isSuccessful) {
-                    _sleepHours.value = sleepHours
-                    sharedPreferences.edit().putFloat("sleepHours", sleepHours).apply()
-                }
-            } else {
-                _sleepHours.value = 0f
-                sharedPreferences.edit().putFloat("sleepHours", 0f).apply()
-            }
+            val sleepData = healthConnectManager.readSleepSessions(sleepDate)
+            _sleepData.value = sleepData
+            _sleepHours.value = sleepData.total.toHours().toFloat()
+            sharedPreferences.edit().putFloat("sleepHours", _sleepHours.value).apply()
+            Log.d("CommonViewModel", "Fetched sleep data for $sleepDate: total=${sleepData.total.toMinutes()} min, sleepHours=${_sleepHours.value}")
         } catch (e: Exception) {
-            Log.e("CommonViewModel", "Sleep sync error: ${e.message}", e)
-            postUiMessage("Failed to sync sleep data.")
+            Log.e("CommonViewModel", "Error fetching sleep data for $sleepDate: ${e.message}", e)
+            _sleepData.value = null
+            _sleepHours.value = 0f
+            sharedPreferences.edit().putFloat("sleepHours", 0f).apply()
+            postUiMessage("Failed to fetch sleep data.")
+        }
+    }
+
+    suspend fun resyncPastSleepData(token: String, daysBack: Int = 7) {
+        val today = LocalDate.now()
+        for (i in 1..daysBack) {
+            val pastDate = today.minusDays(i.toLong())
+            try {
+                val sleepData = healthConnectManager.readSleepSessions(pastDate)
+                Log.d("CommonViewModel", "Fetched past sleep data for $pastDate: total=${sleepData.total.toMinutes()} min")
+            } catch (e: Exception) {
+                Log.e("CommonViewModel", "Error fetching past sleep data for $pastDate: ${e.message}", e)
+            }
         }
     }
 
@@ -322,7 +352,7 @@ class CommonViewModel(
             _isLoading.value = true
             val token = waitForAuthToken()
             syncHealthData(token)
-            syncSleepData(token)
+            syncSleepData()
             _isLoading.value = false
         }
     }
@@ -368,27 +398,6 @@ class CommonViewModel(
                 fetchSocialData(token)
             } else {
                 postUiMessage("Failed to update friend status.")
-            }
-        }
-    }
-
-    suspend fun resyncPastSleepData(token: String, daysBack: Int = 7) {
-        val today = LocalDate.now()
-        for (i in 1..daysBack) {
-            val pastDate = today.minusDays(i.toLong())
-            val sleepData = healthConnectManager.readSleepSessions(pastDate)
-            val existingLogsResponse = strapiRepository.fetchSleepLog(pastDate)
-            if (existingLogsResponse.isSuccessful && existingLogsResponse.body()?.data?.isNotEmpty() == true) {
-                val documentId = existingLogsResponse.body()!!.data.first().documentId
-                val response = strapiRepository.updateSleepLog(documentId, sleepData)
-                if (response.isSuccessful) {
-                    Log.d("CommonViewModel", "Updated sleep for $pastDate")
-                }
-            } else if (sleepData.total > Duration.ZERO) {
-                val response = strapiRepository.syncSleepLog(pastDate, sleepData)
-                if (response.isSuccessful) {
-                    Log.d("CommonViewModel", "Synced new sleep for $pastDate")
-                }
             }
         }
     }

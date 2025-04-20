@@ -66,15 +66,14 @@ fun ProfileScreen(
             is StravaAuthViewModel.StravaAuthState.Success -> {
                 snackbarHostState.showSnackbar("Strava connected!")
             }
-            is StravaAuthViewModel.StravaAuthState.Synced -> {
-                snackbarHostState.showSnackbar("Synced ${state.count} Strava activities")
-            }
             is StravaAuthViewModel.StravaAuthState.Error -> {
                 snackbarHostState.showSnackbar("Strava error: ${state.message}")
             }
             else -> {}
         }
     }
+
+
 
     val profileData = profileViewModel.profileData
     val homeData by homeViewModel.homeData.collectAsState()
@@ -449,7 +448,7 @@ fun ProfileScreen(
                             isEnabled = isStravaConnected,
                             onToggle = { enabled ->
                                 if (enabled) {
-                                    stravaAuthViewModel.initiateStravaAuth()
+                                    stravaAuthViewModel.initiateStravaAuth() // Trigger OAuth flow
                                 } else {
                                     stravaAuthViewModel.disconnectStrava()
                                     coroutineScope.launch {

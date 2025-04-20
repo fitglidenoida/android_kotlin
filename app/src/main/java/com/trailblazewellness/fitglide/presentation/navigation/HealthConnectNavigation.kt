@@ -66,7 +66,7 @@ fun HealthConnectNavigation(
 
     val homeViewModel = HomeViewModel(commonViewModel, context, healthConnectManager)
     val profileViewModel = ProfileViewModel(strapiRepository, authRepository, healthConnectRepository)
-    val sleepViewModel = SleepViewModel(healthConnectManager, strapiRepository, authRepository)
+    val sleepViewModel = SleepViewModel(healthConnectManager, strapiRepository, authRepository, commonViewModel)
     val mealsViewModel = MealsViewModel(strapiRepository, healthConnectRepository, authRepository)
     val workoutViewModel = WorkoutViewModel(
         strapiRepository = strapiRepository,
@@ -163,7 +163,8 @@ fun HealthConnectNavigation(
                         SleepScreen(
                             viewModel = sleepViewModel,
                             navController = navController,
-                            userName = userName
+                            userName = userName,
+                            commonViewModel=commonViewModel
                         )
                     }
                     composable("meals") {

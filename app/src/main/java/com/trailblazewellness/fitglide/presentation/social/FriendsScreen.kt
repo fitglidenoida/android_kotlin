@@ -83,7 +83,7 @@ fun FriendsScreen(
                     snackbarData = data,
                     containerColor = Color(0xFF4CAF50),
                     contentColor = Color.White,
-                    shape = RoundedCornerShape(8.dp)
+                    shape = RoundedCornerShape(16.dp)
                 )
             }
         },
@@ -96,9 +96,9 @@ fun FriendsScreen(
             ) {
                 Text(
                     text = "Friends & Community",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                    color = Color.White,
+                    fontSize = 22.sp
                 )
             }
         },
@@ -122,12 +122,9 @@ fun FriendsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(Color(0xFFF5F5F5), Color(0xFFE0F7FA))
-                    )
-                )
+                .background(Brush.verticalGradient(listOf(Color(0xFFF5F5F5), Color(0xFFE0F7FA))))
         ) {
+            // Invite by Email Section
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -142,7 +139,8 @@ fun FriendsScreen(
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Color(0xFF4CAF50),
                         unfocusedBorderColor = Color.Gray
-                    )
+                    ),
+                    shape = RoundedCornerShape(12.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 TextButton(
@@ -163,6 +161,7 @@ fun FriendsScreen(
                 }
             }
 
+            // Content Sections: Friends, Packs, Challenges, Posts, Cheers
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -172,13 +171,15 @@ fun FriendsScreen(
                     AnimatedVisibility(visible = true, enter = fadeIn()) {
                         Text(
                             "Friends",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 8.dp)
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(top = 16.dp),
+                            fontSize = 18.sp
                         )
                     }
                 }
-                items(friends) { friend -> FriendCard(friend, userId, commonViewModel) }
+                items(friends) { friend ->
+                    FriendCard(friend, userId, commonViewModel)
+                }
                 if (friends.isEmpty()) {
                     item {
                         Text("No friends yet", fontSize = 16.sp, color = Color.Gray, modifier = Modifier.padding(16.dp))
@@ -189,9 +190,9 @@ fun FriendsScreen(
                     AnimatedVisibility(visible = true, enter = fadeIn()) {
                         Text(
                             "Packs",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 16.dp)
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(top = 16.dp),
+                            fontSize = 18.sp
                         )
                     }
                 }
@@ -206,9 +207,9 @@ fun FriendsScreen(
                     AnimatedVisibility(visible = true, enter = fadeIn()) {
                         Text(
                             "Challenges",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 16.dp)
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(top = 16.dp),
+                            fontSize = 18.sp
                         )
                     }
                 }
@@ -227,9 +228,9 @@ fun FriendsScreen(
                     AnimatedVisibility(visible = true, enter = fadeIn()) {
                         Text(
                             "Posts",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 16.dp)
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(top = 16.dp),
+                            fontSize = 18.sp
                         )
                     }
                 }
@@ -248,9 +249,9 @@ fun FriendsScreen(
                     AnimatedVisibility(visible = true, enter = fadeIn()) {
                         Text(
                             "Cheers",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 16.dp)
+                            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+                            modifier = Modifier.padding(top = 16.dp),
+                            fontSize = 18.sp
                         )
                     }
                 }
@@ -262,16 +263,6 @@ fun FriendsScreen(
                 }
                 item { LiveCheerCard(userId, isTracking, commonViewModel) }
 
-                item {
-                    AnimatedVisibility(visible = true, enter = fadeIn()) {
-                        Text(
-                            "Pride Milestones",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 16.dp)
-                        )
-                    }
-                }
                 item {
                     Row(
                         modifier = Modifier
@@ -323,9 +314,9 @@ fun PostCard(post: StrapiApi.PostEntry, comments: List<StrapiApi.CommentEntry>, 
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .shadow(6.dp, RoundedCornerShape(8.dp))
+            .shadow(8.dp, RoundedCornerShape(16.dp))
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Column(
@@ -372,9 +363,10 @@ fun FriendCard(friend: StrapiApi.FriendEntry, userId: String, viewModel: CommonV
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .shadow(6.dp, RoundedCornerShape(8.dp)),
-        shape = RoundedCornerShape(8.dp),
+            .padding(vertical = 8.dp)
+            .shadow(8.dp, RoundedCornerShape(16.dp))
+            .clickable { },
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White)
     ) {
         Row(
@@ -383,16 +375,7 @@ fun FriendCard(friend: StrapiApi.FriendEntry, userId: String, viewModel: CommonV
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val scale by animateFloatAsState(if (isPressed) 1.1f else 1f)
-            IconButton(
-                onClick = {},
-                interactionSource = interactionSource,
-                modifier = Modifier.scale(scale)
-            ) {
-                Icon(Icons.Default.Person, contentDescription = "Friend", tint = Color(0xFF4CAF50))
-            }
+            Icon(Icons.Default.Person, contentDescription = "Friend", tint = Color(0xFF4CAF50))
             Spacer(modifier = Modifier.width(8.dp))
             Text(
                 text = friend.friendEmail.takeIf { it.isNotEmpty() } ?: "Unknown Friend",
@@ -423,6 +406,7 @@ fun FriendCard(friend: StrapiApi.FriendEntry, userId: String, viewModel: CommonV
         }
     }
 }
+
 
 @Composable
 fun PackCard(pack: StrapiApi.PackEntry) {

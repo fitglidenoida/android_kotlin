@@ -14,7 +14,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -202,12 +201,21 @@ fun MealsScreen(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Daily Quest",
+                    text = "Daily Quests",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF212121)
                 )
-                QuestCard(mealsData.questGoal, mealsData.questProgress, 100f)
+                if (mealsData.quests.isNotEmpty()) {
+                    QuestCarousel(quests = mealsData.quests)
+                } else {
+                    Text(
+                        text = "No Active Quests",
+                        fontSize = 16.sp,
+                        color = Color(0xFF757575),
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
@@ -289,6 +297,7 @@ fun MealPickerDialog(
     val filteredLunch = favoriteFoods.filter { it.contains(lunchSearch, ignoreCase = true) }
     val filteredDinner = favoriteFoods.filter { it.contains(dinnerSearch, ignoreCase = true) }
     val filteredSnack = favoriteFoods.filter { it.contains(snackSearch, ignoreCase = true) }
+    val keyboardController = LocalSoftwareKeyboardController.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -373,6 +382,7 @@ fun MealPickerDialog(
                                     breakfastFav = food
                                     breakfastSearch = food
                                     breakfastExpanded = false
+                                    keyboardController?.hide()
                                 }
                             )
                         }
@@ -435,6 +445,7 @@ fun MealPickerDialog(
                                     lunchFav = food
                                     lunchSearch = food
                                     lunchExpanded = false
+                                    keyboardController?.hide()
                                 }
                             )
                         }
@@ -497,6 +508,7 @@ fun MealPickerDialog(
                                     dinnerFav = food
                                     dinnerSearch = food
                                     dinnerExpanded = false
+                                    keyboardController?.hide()
                                 }
                             )
                         }
@@ -559,6 +571,7 @@ fun MealPickerDialog(
                                     snackFav = food
                                     snackSearch = food
                                     snackExpanded = false
+                                    keyboardController?.hide()
                                 }
                             )
                         }
@@ -624,7 +637,7 @@ fun CalorieArc(bmr: Float, caloriesLogged: Float, onClick: () -> Unit) {
                 drawArc(
                     color = Color(0xFF4CAF50),
                     startAngle = -90f,
-                    sweepAngle = 360f * (caloriesLogged / bmr),
+                    sweepAngle = 360f * (caloriesLogged / bmr).coerceIn(0f, 1f),
                     useCenter = false,
                     topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                     size = Size(radius * 2, radius * 2),
@@ -667,7 +680,7 @@ fun MacroArc(label: String, value: Float, max: Float, color: Color) {
                 drawArc(
                     color = color,
                     startAngle = -90f,
-                    sweepAngle = 360f * (value / max),
+                    sweepAngle = 360f * (value / max).coerceIn(0f, 1f),
                     useCenter = false,
                     topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                     size = Size(radius * 2, radius * 2),
@@ -943,26 +956,63 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
 }
 
 @Composable
-fun QuestCard(goal: String, progress: Float, max: Float) {
+fun QuestCarousel(quests: List<Quest>) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(quests) { quest ->
+            QuestCard(quest = quest)
+        }
+    }
+}
+
+@Composable
+fun QuestCard(quest: Quest) {
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = Color(0xFFFFF3E0),
         modifier = Modifier
             .width(200.dp)
-            .padding(vertical = 8.dp)
+            .padding(vertical = 4.dp)
     ) {
         Column(
-            modifier = Modifier.padding(8.dp),
+            modifier = Modifier.padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(goal, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121))
+            Text(
+                text = quest.goal,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF212121),
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(8.dp))
             LinearProgressIndicator(
-                progress = { progress / max },
-                modifier = Modifier.fillMaxWidth(),
+                progress = { (quest.progress / quest.max).coerceIn(0f, 1f) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp),
                 color = Color(0xFF4CAF50),
                 trackColor = Color(0xFFEEEEEE)
             )
-            Text("${progress.toInt()}g / ${max.toInt()}g", fontSize = 12.sp, color = Color(0xFF757575))
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "${quest.progress.toInt()}g / ${quest.max.toInt()}g",
+                fontSize = 12.sp,
+                color = Color(0xFF757575)
+            )
+            if (quest.progress >= quest.max) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Completed!",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF4CAF50)
+                )
+            }
         }
     }
 }
@@ -984,7 +1034,13 @@ fun RecipeCarousel(viewModel: MealsViewModel) {
                     modifier = Modifier.padding(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text(recipe, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121))
+                    Text(
+                        text = recipe,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF212121),
+                        textAlign = TextAlign.Center
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     Button(
                         onClick = { viewModel.logRecipe(recipe) },
@@ -1027,6 +1083,14 @@ fun MealsDetailsOverlay(mealsData: MealsData, onDismiss: () -> Unit) {
                 Text("Carbs: ${mealsData.carbs.toInt()}g", fontSize = 16.sp)
                 Text("Fat: ${mealsData.fat.toInt()}g", fontSize = 16.sp)
                 Text("Fiber: ${mealsData.fiber.toInt()}g", fontSize = 16.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                    shape = RoundedCornerShape(4.dp)
+                ) {
+                    Text("Close", color = Color.White)
+                }
             }
         }
     }

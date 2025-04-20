@@ -80,7 +80,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.coil.compose)
     implementation(libs.androidx.compose.bom)
-
+    implementation(libs.androidx.credentials.v130)
 
 
     // Explicitly use latest annotations
@@ -89,6 +89,8 @@ dependencies {
     implementation(libs.firebase.messaging.ktx)
     implementation(libs.androidx.datastore.core.android)
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.credentials)
+    implementation(libs.googleid)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.core)

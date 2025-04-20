@@ -33,9 +33,10 @@ class WorkoutViewModel(
             steps = 0f,
             schedule = emptyList(),
             streak = 0,
-            dailyChallenge = "Hit 3 workouts",
+            dailyChallenge = "",
             challengeProgress = 0,
             buddyChallenges = emptyList(),
+            insights = emptyList(),
             selectedDate = LocalDate.now(),
             selectedGoal = "Cardio"
         )
@@ -169,6 +170,24 @@ class WorkoutViewModel(
                 emptyList()
             }
 
+            val challengesResponse = strapiRepository.getChallenges(userId, authToken)
+            val challenges = if (challengesResponse.isSuccessful) {
+                challengesResponse.body()?.data?.map { challenge ->
+                    Challenge(
+                        id = challenge.id,
+                        goal = challenge.goal,
+                        status = challenge.status,
+                        type = challenge.type,
+                        challengerId = challenge.challenger?.id ?: "",
+                        challengeeId = challenge.challengee?.id ?: "",
+                        winner = "" // Strapi schema has winner, but not populated in ChallengeEntry
+                    )
+                } ?: emptyList()
+            } else {
+                Log.e("WorkoutDebug", "Failed to fetch challenges: ${challengesResponse.code()}")
+                emptyList()
+            }
+
             val session = healthConnectManager.readExerciseSessions(_workoutData.value.selectedDate)
             val schedule = (plans + logs.filter { it.workout == null && it.startTime.startsWith(dateStr) }.map { log ->
                 WorkoutSlot(
@@ -189,6 +208,18 @@ class WorkoutViewModel(
             val heartRate = logs.mapNotNull { it.heartRateAverage?.toFloat() }.average().toFloat().takeIf { it > 0 } ?: session.heartRateAvg?.toFloat() ?: 0f
             val caloriesBurned = logs.sumOf { it.calories?.toDouble() ?: 0.0 }.toFloat().takeIf { it > 0 } ?: session.calories?.toFloat() ?: (if (_workoutData.value.selectedDate == LocalDate.of(2025, 4, 13)) 868f else 0f)
             val streak = calculateStreak(logs)
+            val insights = generateInsights(logs, steps, heartRate)
+
+            // Map challenges to UI data
+            val dailyChallenge = challenges.firstOrNull { it.type == "Solo" && it.status == "accepted" }
+            val buddyChallenges = challenges.filter { it.type != "Solo" && it.status == "accepted" }.map { challenge ->
+                BuddyChallenge(
+                    buddyName = if (challenge.challengerId == userId) challenge.challengeeId else challenge.challengerId,
+                    goal = "${challenge.goal} ${if (challenge.type == "Pack") "pack points" else "vs points"}",
+                    buddyProgress = logs.count { it.completed }, // Simplified, as winner not populated
+                    userProgress = logs.count { it.completed }
+                )
+            }
 
             _workoutData.value = _workoutData.value.copy(
                 heartRate = heartRate,
@@ -196,12 +227,53 @@ class WorkoutViewModel(
                 steps = steps,
                 schedule = schedule,
                 streak = streak,
-                challengeProgress = logs.count { it.completed }
+                dailyChallenge = dailyChallenge?.let { "${it.goal} solo points" } ?: "No active solo challenge",
+                challengeProgress = dailyChallenge?.let { logs.count { it.completed } } ?: 0,
+                buddyChallenges = buddyChallenges,
+                insights = insights
             )
-            Log.d("WorkoutDebug", "Updated workoutData: schedule.size=${schedule.size}, heartRate=$heartRate, calories=$caloriesBurned, steps=$steps")
+            Log.d("WorkoutDebug", "Updated workoutData: schedule.size=${schedule.size}, heartRate=$heartRate, calories=$caloriesBurned, steps=$steps, challenges=${challenges.size}, insights=${insights.size}")
         } catch (e: Exception) {
             Log.e("WorkoutDebug", "Error fetching workout data: ${e.message ?: "Unknown error"}", e)
         }
+    }
+
+    private fun generateInsights(logs: List<StrapiApi.WorkoutLogEntry>, steps: Float, heartRate: Float): List<String> {
+        val insights = mutableListOf<String>()
+        val completedWorkouts = logs.count { it.completed }
+        val totalCalories = logs.sumOf { it.calories?.toDouble() ?: 0.0 }.toFloat()
+        val avgHeartRate = logs.mapNotNull { it.heartRateAverage?.toFloat() }.average().toFloat()
+
+        // Steps-based insight
+        when {
+            steps >= 10000 -> insights.add("Great job! You've hit ${steps.toInt()} steps today—keep it up!")
+            steps >= 5000 -> insights.add("You're at ${steps.toInt()} steps. Aim for 10K to boost your daily activity!")
+            else -> insights.add("You've taken ${steps.toInt()} steps. Try a short walk to reach 5K today!")
+        }
+
+        // Heart rate-based insight
+        when {
+            avgHeartRate > 130 -> insights.add("Your heart rate averaged ${avgHeartRate.toInt()} BPM—great intensity!")
+            avgHeartRate > 100 -> insights.add("Heart rate at ${avgHeartRate.toInt()} BPM. Push to 130 for max calorie burn!")
+            avgHeartRate > 0 -> insights.add("Your heart rate was ${avgHeartRate.toInt()} BPM. Try a cardio session to elevate it!")
+            else -> insights.add("No heart rate data logged. Wear your device for better tracking!")
+        }
+
+        // Workout completion insight
+        when {
+            completedWorkouts >= 3 -> insights.add("Amazing! You've completed $completedWorkouts workouts today!")
+            completedWorkouts > 0 -> insights.add("Nice work on $completedWorkouts workout(s)! Aim for 3 today!")
+            else -> insights.add("No workouts completed yet. Start a ${if (_workoutData.value.selectedGoal.isNotEmpty()) _workoutData.value.selectedGoal else "quick"} session!")
+        }
+
+        // Calorie-based insight
+        when {
+            totalCalories >= 500 -> insights.add("Wow, ${totalCalories.toInt()} calories burned! You're on fire!")
+            totalCalories >= 200 -> insights.add("${totalCalories.toInt()} calories burned. Push for 500 with another session!")
+            else -> insights.add("You've burned ${totalCalories.toInt()} calories. Add a workout to hit 200!")
+        }
+
+        return insights
     }
 
     fun setDate(date: LocalDate) {
@@ -297,6 +369,7 @@ data class WorkoutUiData(
     val dailyChallenge: String,
     val challengeProgress: Int,
     val buddyChallenges: List<BuddyChallenge>,
+    val insights: List<String>,
     val selectedDate: LocalDate,
     val selectedGoal: String
 )
@@ -320,4 +393,14 @@ data class BuddyChallenge(
     val goal: String,
     val buddyProgress: Int,
     val userProgress: Int
+)
+
+data class Challenge(
+    val id: String,
+    val goal: Int,
+    val status: String,
+    val type: String,
+    val challengerId: String,
+    val challengeeId: String,
+    val winner: String
 )

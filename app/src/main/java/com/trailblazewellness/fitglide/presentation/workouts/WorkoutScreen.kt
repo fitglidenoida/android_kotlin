@@ -283,9 +283,24 @@ fun WorkoutScreen(
                             .padding(16.dp)
                             .fillMaxWidth()
                     ) {
-                        Text("Push HR to 130 for max burn!", fontSize = 14.sp, color = Color(0xFF424242))
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text("Steps on track—aim for 10K!", fontSize = 14.sp, color = Color(0xFF424242))
+                        if (workoutData.insights.isNotEmpty()) {
+                            workoutData.insights.forEachIndexed { index, insight ->
+                                Text(
+                                    text = insight,
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF424242)
+                                )
+                                if (index < workoutData.insights.size - 1) {
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                }
+                            }
+                        } else {
+                            Text(
+                                text = "No insights available. Complete a workout to get personalized tips!",
+                                fontSize = 14.sp,
+                                color = Color(0xFF424242)
+                            )
+                        }
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -296,27 +311,10 @@ fun WorkoutScreen(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF212121)
                 )
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFE8F5E9),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .padding(8.dp)
-                            .fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(workoutData.dailyChallenge, fontSize = 14.sp, color = Color(0xFF212121))
-                        Text("${workoutData.challengeProgress}/3", fontSize = 12.sp, color = Color(0xFF757575))
-                    }
-                }
-                Spacer(modifier = Modifier.height(8.dp))
-                workoutData.buddyChallenges.forEach { challenge ->
+                if (workoutData.dailyChallenge.isNotEmpty()) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFFFFF3E0),
+                        color = Color(0xFFE8F5E9),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
@@ -326,11 +324,55 @@ fun WorkoutScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("${challenge.buddyName}: ${challenge.goal}", fontSize = 14.sp, color = Color(0xFF212121))
-                            Text("${challenge.userProgress}/${challenge.buddyProgress}", fontSize = 12.sp, color = Color(0xFF757575))
+                            Text(
+                                text = workoutData.dailyChallenge,
+                                fontSize = 14.sp,
+                                color = Color(0xFF212121)
+                            )
+                            Text(
+                                text = "${workoutData.challengeProgress}/3",
+                                fontSize = 12.sp,
+                                color = Color(0xFF757575)
+                            )
                         }
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                if (workoutData.buddyChallenges.isNotEmpty()) {
+                    workoutData.buddyChallenges.forEach { challenge ->
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = Color(0xFFFFF3E0),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .padding(8.dp)
+                                    .fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "${challenge.buddyName}: ${challenge.goal}",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF212121)
+                                )
+                                Text(
+                                    text = "${challenge.userProgress}/${challenge.buddyProgress}",
+                                    fontSize = 12.sp,
+                                    color = Color(0xFF757575)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+                } else {
+                    Text(
+                        text = "No active challenges. Join one in the community section!",
+                        fontSize = 14.sp,
+                        color = Color(0xFF757575),
+                        modifier = Modifier.padding(8.dp)
+                    )
                 }
                 Spacer(modifier = Modifier.height(8.dp))
                 if (workoutData.streak > 0) {

@@ -28,7 +28,6 @@ import com.trailblazewellness.fitglide.auth.AuthRepository
 import com.trailblazewellness.fitglide.auth.GoogleAuthManager
 import com.trailblazewellness.fitglide.data.api.StrapiRepository
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
-import com.trailblazewellness.fitglide.data.max.MaxAiService
 import com.trailblazewellness.fitglide.data.workers.WorkoutTrackingService
 import com.trailblazewellness.fitglide.data.workers.scheduleHydrationReminder
 import com.trailblazewellness.fitglide.presentation.LoginScreen
@@ -36,38 +35,45 @@ import com.trailblazewellness.fitglide.presentation.home.HomeViewModel
 import com.trailblazewellness.fitglide.presentation.navigation.HealthConnectNavigation
 import com.trailblazewellness.fitglide.presentation.onboarding.SignupScreen
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
 
-    // Core managers & repositories
     private lateinit var googleAuthManager: GoogleAuthManager
     private lateinit var authRepository: AuthRepository
     private lateinit var healthConnectManager: HealthConnectManager
     private lateinit var strapiRepository: StrapiRepository
-
-    // ViewModels
     private lateinit var commonViewModel: CommonViewModel
     private lateinit var homeViewModel: HomeViewModel
 
-    // Permissions
     private val healthPermissions = setOf(
         Manifest.permission.ACTIVITY_RECOGNITION,
         Manifest.permission.ACCESS_FINE_LOCATION,
         Manifest.permission.ACCESS_COARSE_LOCATION,
         Manifest.permission.FOREGROUND_SERVICE,
         Manifest.permission.FOREGROUND_SERVICE_LOCATION,
+        Manifest.permission.FOREGROUND_SERVICE_HEALTH,
         "android.permission.health.READ_STEPS",
+        "android.permission.health.WRITE_STEPS",
         "android.permission.health.READ_SLEEP",
+        "android.permission.health.WRITE_SLEEP",
         "android.permission.health.READ_EXERCISE",
         "android.permission.health.WRITE_EXERCISE",
         "android.permission.health.READ_HEART_RATE",
+        "android.permission.health.WRITE_HEART_RATE",
+        "android.permission.health.READ_WEIGHT",
+        "android.permission.health.WRITE_WEIGHT",
+        "android.permission.health.READ_EXERCISE_ROUTES",
+        "android.permission.health.WRITE_EXERCISE_ROUTES",
         "android.permission.health.READ_DISTANCE",
+        "android.permission.health.WRITE_DISTANCE",
         "android.permission.health.READ_TOTAL_CALORIES_BURNED",
-        "android.permission.health.WRITE_STEPS",
-        "android.permission.health.READ_NUTRITION"
+        "android.permission.health.READ_NUTRITION",
+        "android.permission.health.READ_HYDRATION",
+        "android.permission.health.READ_DISTANCERECORD",
+        "android.permission.health.READ_TOTALCALORIESBURNEDRECORD",
+        "android.permission.health.READ_HEARTRATERECORD"
     )
 
     private val permissionLauncher = registerForActivityResult(
@@ -83,10 +89,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Step 1: Init dependencies
         initializeDependencies()
 
-        // Step 2: Setup Compose UI
         setContent {
             FitGlideTheme {
                 Surface(
@@ -100,7 +104,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Step 3: Background Setup
         lifecycleScope.launch {
             setupBackgroundTasks()
         }
@@ -115,10 +118,8 @@ class MainActivity : ComponentActivity() {
         strapiRepository = StrapiRepository(authRepository.strapiApi, authRepository)
 
         commonViewModel = CommonViewModel(this, strapiRepository, healthConnectManager, authRepository)
-        homeViewModel = HomeViewModel(commonViewModel, this, healthConnectManager) // Pass context
+        homeViewModel = HomeViewModel(commonViewModel, this, healthConnectManager)
         MainActivity.commonViewModel = commonViewModel
-
-//        MaxAiService.initTTS(this)
     }
 
     private fun setupBackgroundTasks() {

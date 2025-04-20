@@ -16,7 +16,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
-import java.time.ZoneOffset
 import kotlin.reflect.KClass
 
 const val MIN_SUPPORTED_SDK = Build.VERSION_CODES.O_MR1
@@ -99,7 +98,8 @@ class HealthConnectManager(private val context: Context) {
             "android.permission.health.READ_EXERCISE",
             "android.permission.health.READ_DISTANCE",
             "android.permission.health.READ_TOTAL_CALORIES_BURNED",
-            "android.permission.health.READ_HEART_RATE"
+            "android.permission.health.READ_HEART_RATE",
+            "android.permission.health.READ_HYDRATION" // Added
         )
         val hasPerms = hasAllPermissions(requiredPermissions)
         Log.d("HealthConnectManager", "Workout permissions granted: $hasPerms, required: $requiredPermissions")
@@ -131,6 +131,16 @@ class HealthConnectManager(private val context: Context) {
         // Skip if recent quota error
         if (currentTime - lastQuotaErrorTime < maxDelay) {
             Log.w("HealthConnectManager", "Skipping read for ${recordType.simpleName}; recent quota error")
+            return emptyList()
+        }
+
+        // Check permissions
+        val permission = when (recordType) {
+            HydrationRecord::class -> "android.permission.health.READ_HYDRATION"
+            else -> "android.permission.health.READ_${recordType.simpleName?.uppercase()}"
+        }
+        if (!hasAllPermissions(setOf(permission))) {
+            Log.w("HealthConnectManager", "Missing permission $permission for ${recordType.simpleName}")
             return emptyList()
         }
 

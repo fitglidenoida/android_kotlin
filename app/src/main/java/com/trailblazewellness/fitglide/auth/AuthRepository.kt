@@ -3,7 +3,6 @@ package com.trailblazewellness.fitglide.auth
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
-import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.api.StrapiApi.UserProfileRequest
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -65,8 +64,7 @@ class AuthRepository @Inject constructor(
             return false
         }
 
-        val googleAccount = googleAuthManager.context?.let { GoogleSignIn.getLastSignedInAccount(it) }
-        Log.d("AuthRepository", "Google account found: ${googleAccount?.email}, idToken: $idToken")
+        Log.d("AuthRepository", "Attempting Google login with idToken: $idToken")
 
         if (getAuthState().jwt == null) {
             Log.d("AuthRepository", "JWT missing, attempting Google login")
@@ -78,26 +76,18 @@ class AuthRepository @Inject constructor(
                     val loginResponse = response.body()
                     val jwt = loginResponse?.jwt
                     val userId = loginResponse?.user?.id?.toString()
-                    val userName = googleAccount?.givenName ?: "User"
-                    val displayName = googleAccount?.displayName ?: ""
-                    val lastName = if (displayName.contains(" ")) displayName.substringAfter(" ") else null
-                    Log.d("AuthRepository", "Login success: JWT=$jwt, id=$userId, name=$userName, lastName=$lastName")
+                    val userName = loginResponse?.user?.email?.split("@")?.get(0) ?: "User" // Fallback to email-based username
+                    Log.d("AuthRepository", "Login success: JWT=$jwt, id=$userId, name=$userName")
                     _authStateFlow.value = AuthState(jwt, userId, userName)
                     saveAuthStateToPrefs(jwt, userId, userName)
 
-                    val updateRequest = UserProfileRequest(
-                        firstName = googleAccount?.givenName,
-                        lastName = lastName,
-                        email = googleAccount?.email,
-                        mobile = null
-                    )
                     val updateResponse = strapiApi.updateUserProfile(
                         userId.toString(),
-                        StrapiApi.UserProfileBody(updateRequest),
+                        StrapiApi.UserProfileBody(UserProfileRequest(email = loginResponse?.user?.email)),
                         "Bearer $jwt"
                     )
                     if (updateResponse.isSuccessful) {
-                        Log.d("AuthRepository", "Updated Strapi profile: firstName=${googleAccount?.givenName}, lastName=$lastName, email=${googleAccount?.email}")
+                        Log.d("AuthRepository", "Updated Strapi profile: email=${loginResponse?.user?.email}")
                     } else {
                         Log.e("AuthRepository", "Failed to update Strapi profile: ${updateResponse.code()} - ${updateResponse.errorBody()?.string()}")
                     }
@@ -129,7 +119,7 @@ class AuthRepository @Inject constructor(
                 val loginResponse = response.body()
                 val jwt = loginResponse?.jwt
                 val userId = loginResponse?.user?.id?.toString()
-                val userName = loginResponse?.user?.email ?: "User"
+                val userName = loginResponse?.user?.email?.split("@")?.get(0) ?: "User"
                 Log.d("AuthRepository", "Strapi login success: JWT=$jwt, id=$userId, name=$userName")
                 _authStateFlow.value = AuthState(jwt, userId, userName)
                 saveAuthStateToPrefs(jwt, userId, userName)
@@ -142,12 +132,12 @@ class AuthRepository @Inject constructor(
     }
 
     suspend fun refreshLogin() {
-        val account = googleAuthManager.context?.let { GoogleSignIn.getLastSignedInAccount(it) }
-        val refreshedToken = account?.idToken
+        Log.d("AuthRepository", "Attempting to refresh login")
+        val refreshedToken = googleAuthManager.refreshToken()
         if (refreshedToken != null) {
             loginWithGoogle(refreshedToken)
         } else {
-            Log.w("AuthRepository", "Failed to refresh token, no signed-in account")
+            Log.w("AuthRepository", "Failed to refresh token")
         }
     }
 

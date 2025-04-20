@@ -240,10 +240,12 @@ fun HomeScreen(
                             Canvas(modifier = Modifier.size(160.dp)) {
                                 val totalStepsDisplay = homeData.watchSteps + homeData.manualSteps + homeData.trackedSteps
                                 val radius = size.width / 2 - 10.dp.toPx()
+                                val sweepAngle = 360f * (totalStepsDisplay / homeData.stepGoal).coerceIn(0f, 1f)
+                                Log.d("HomeScreen", "Rendering steps: total=$totalStepsDisplay, sweepAngle=$sweepAngle")
                                 drawArc(
                                     color = Color(0xFF4CAF50),
                                     startAngle = -90f,
-                                    sweepAngle = 360f * (totalStepsDisplay / homeData.stepGoal).coerceIn(0f, 1f),
+                                    sweepAngle = sweepAngle,
                                     useCenter = false,
                                     topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                                     size = Size(radius * 2, radius * 2),

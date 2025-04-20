@@ -453,8 +453,12 @@
             @SerializedName("HeartRateMinimum") val heartRateMinimum: Long?,
             val route: List<Map<String, Float>>?,
             val completed: Boolean,
-            val notes: String?
-        )
+            val notes: String?,
+            val athleteId: Int,
+            val activity_id: Int
+        ) {
+
+        }
 
         // Health Vitals
         data class HealthVitalsBody(val data: HealthVitalsRequest)
@@ -710,6 +714,23 @@
             val refresh_token: String,
             val expires_at: Long
         )
+
+        data class StravaActivity(
+            val activity_id: Int,  // Correctly referring to the activity ID
+            val workoutId: Int,
+            val startTime: String,  // ISO 8601 format
+            val endTime: String,    // ISO 8601 format
+            val distance: Float,
+            val totalTime: Float,
+            val calories: Float,
+            val heartRateAverage: Int?,
+            val heartRateMaximum: Int?,
+            val heartRateMinimum: Int?,
+            val route: String?,
+            val athleteId: Int
+        )
+
+
 
         data class DesiMessageResponse(
             val data: List<DesiMessage>,
