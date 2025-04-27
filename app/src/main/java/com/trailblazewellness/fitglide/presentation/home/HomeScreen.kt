@@ -2,7 +2,6 @@ package com.trailblazewellness.fitglide.presentation.home
 
 import android.content.Intent
 import android.util.Log
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,13 +38,15 @@ import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.trailblazewellness.fitglide.FitGlideTheme
-import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
 import com.trailblazewellness.fitglide.data.workers.WorkoutTrackingService
+import com.trailblazewellness.fitglide.presentation.successstory.SuccessStoryViewModel
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+
+private const val PLACEHOLDER_BADGE_URL = "https://admin.fitglide.in/uploads/placeholder_badge.png"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,6 +56,7 @@ fun HomeScreen(
     healthConnectManager: HealthConnectManager,
     homeViewModel: HomeViewModel,
     commonViewModel: CommonViewModel,
+    successStoryViewModel: SuccessStoryViewModel,
     userName: String
 ) {
     val isLoading by commonViewModel.isLoading.collectAsState()
@@ -64,6 +66,7 @@ fun HomeScreen(
     val posts by commonViewModel.posts.collectAsState()
     val trackedSteps by commonViewModel.trackedStepsFlow.collectAsState()
     val challenges by commonViewModel.challenges.collectAsState(initial = emptyList())
+    val navigateToCreateStory by homeViewModel.navigateToCreateStory.collectAsState()
     val scrollState = rememberScrollState()
     var showTrackingPopup by remember { mutableStateOf(false) }
     var showRangePicker by remember { mutableStateOf(false) }
@@ -74,6 +77,14 @@ fun HomeScreen(
     var showMaxPopup by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     val pullToRefreshState = rememberPullToRefreshState()
+
+    // Handle navigation to WeightLossStoryScreen
+    LaunchedEffect(navigateToCreateStory) {
+        if (navigateToCreateStory) {
+            navController.navigate("weight_loss_story")
+            homeViewModel.onNavigationHandled()
+        }
+    }
 
     if (pullToRefreshState.isRefreshing) {
         LaunchedEffect(true) {
@@ -124,11 +135,27 @@ fun HomeScreen(
                         .padding(vertical = 16.dp, horizontal = 24.dp)
                 ) {
                     Text(
-                        text = "Hey $userName!",
+                        text = "Hey ${homeData.firstName}!",
                         style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.ExtraBold,
                         color = Color.White,
                         modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+            },
+            floatingActionButton = {
+                // Custom FAB with larger "+" icon and no label
+                IconButton(
+                    onClick = { homeViewModel.onCreateStoryClicked() },
+                    modifier = Modifier
+                        .background(Color(0xFF4CAF50), shape = CircleShape)
+                        .size(56.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Create Story",
+                        tint = Color.White,
+                        modifier = Modifier.size(36.dp) // Larger "+" icon
                     )
                 }
             }
@@ -440,17 +467,16 @@ fun HomeScreen(
                                 }
                                 Button(
                                     onClick = {
+                                        val userId = commonViewModel.getAuthRepository().getAuthState().getId() ?: "1"
+                                        val token = commonViewModel.getAuthRepository().getAuthState().jwt ?: ""
                                         val intent = Intent(
                                             context,
                                             WorkoutTrackingService::class.java
                                         ).apply {
-                                            putExtra(
-                                                "userId",
-                                                commonViewModel.getAuthRepository().getAuthState().getId() ?: "1"
-                                            )
+                                            putExtra("userId", userId)
                                             putExtra("workoutType", workoutType)
                                             putExtra("manualStart", true)
-                                            putExtra("token", commonViewModel.getAuthRepository().getAuthState().jwt ?: "")
+                                            putExtra("token", token)
                                         }
                                         if (homeData.isTracking) {
                                             Log.d("HomeScreen", "Stopping WorkoutTrackingService")
@@ -494,33 +520,158 @@ fun HomeScreen(
                         }
 
                         // Navigation Cards
-                        NavigationCard(
-                            icon = Icons.Default.FitnessCenter,
-                            label = "Strength - ${homeData.caloriesBurned.toInt()} cal",
-                            onClick = { navController.navigate("workouts") }
-                        )
-                        NavigationCard(
-                            icon = Icons.Default.NightlightRound,
-                            label = "${String.format("%.1f", homeData.sleepHours)}h slept",
-                            onClick = { navController.navigate("sleep") }
-                        )
-                        NavigationCard(
-                            icon = Icons.Default.Restaurant,
-                            label = "${homeData.caloriesLogged.toInt()}/${homeData.bmr} cal",
-                            onClick = { navController.navigate("meals") }
-                        )
-                        NavigationCard(
-                            icon = Icons.Default.WaterDrop,
-                            label = "${homeData.hydration}L today",
-                            onClick = { commonViewModel.logWaterIntake() }
-                        )
-                        NavigationCard(
-                            icon = Icons.Default.Group,
-                            label = "Friends & Community (${posts.size} posts)",
-                            onClick = { navController.navigate("friends") }
-                        )
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .shadow(4.dp, RoundedCornerShape(12.dp))
+                                .clickable { navController.navigate("workouts") },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.FitnessCenter,
+                                    contentDescription = "Strength",
+                                    tint = Color(0xFF4CAF50),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Strength - ${homeData.caloriesBurned.toInt()} cal",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF212121)
+                                )
+                            }
+                        }
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .shadow(4.dp, RoundedCornerShape(12.dp))
+                                .clickable { navController.navigate("sleep") },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.NightlightRound,
+                                    contentDescription = "Sleep",
+                                    tint = Color(0xFF4CAF50),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "${String.format("%.1f", homeData.sleepHours)}h slept",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF212121)
+                                )
+                            }
+                        }
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .shadow(4.dp, RoundedCornerShape(12.dp))
+                                .clickable { navController.navigate("meals") },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Restaurant,
+                                    contentDescription = "Meals",
+                                    tint = Color(0xFF4CAF50),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "${homeData.caloriesLogged.toInt()}/${homeData.bmr} cal",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF212121)
+                                )
+                            }
+                        }
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .shadow(4.dp, RoundedCornerShape(12.dp))
+                                .clickable { commonViewModel.logWaterIntake() },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.WaterDrop,
+                                    contentDescription = "Hydration",
+                                    tint = Color(0xFF4CAF50),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "${homeData.hydration}L today",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF212121)
+                                )
+                            }
+                        }
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .shadow(4.dp, RoundedCornerShape(12.dp))
+                                .clickable { navController.navigate("friends") },
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Group,
+                                    contentDescription = "Friends",
+                                    tint = Color(0xFF4CAF50),
+                                    modifier = Modifier.size(32.dp)
+                                )
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = "Friends & Community (${posts.size} posts)",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = Color(0xFF212121)
+                                )
+                            }
+                        }
 
-                        // Max Insights (only show after popup is dismissed)
+                        // Max Insights
                         if (homeData.maxMessage.hasPlayed) {
                             Card(
                                 modifier = Modifier
@@ -611,47 +762,18 @@ fun HomeScreen(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(homeData.badges) { badge ->
-                                Card(
+                                AsyncImage(
+                                    model = badge.iconUrl ?: PLACEHOLDER_BADGE_URL,
+                                    contentDescription = null,
                                     modifier = Modifier
-                                        .width(160.dp)
-                                        .height(180.dp),
-                                    shape = RoundedCornerShape(16.dp),
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .padding(12.dp)
-                                            .fillMaxSize(),
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        verticalArrangement = Arrangement.SpaceEvenly
-                                    ) {
-                                        AsyncImage(
-                                            model = badge.iconUrl ?: "https://admin.fitglide.in/uploads/placeholder_badge.png",
-                                            contentDescription = badge.title,
-                                            modifier = Modifier.size(48.dp)
-                                        )
-                                        Text(
-                                            text = badge.title,
-                                            fontSize = 14.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF212121),
-                                            maxLines = 1
-                                        )
-                                        Text(
-                                            text = badge.description,
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF757575),
-                                            maxLines = 2
-                                        )
-                                    }
-                                }
+                                        .size(100.dp)
+                                )
                             }
                         }
 
-                        // Stories/Leaderboard
+                        // Leaderboard
                         Text(
-                            text = if (homeData.showStories) "Success Stories" else "Leaderboard",
+                            text = "Leaderboard",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF212121),
@@ -681,7 +803,7 @@ fun HomeScreen(
                                     shape = RoundedCornerShape(8.dp)
                                 ) {
                                     Text(
-                                        if (homeData.showStories) "See Leaderboard" else "See Stories",
+                                        text = "Refresh Leaderboard",
                                         color = Color.White,
                                         fontSize = 14.sp,
                                         fontWeight = FontWeight.Bold
@@ -700,7 +822,7 @@ fun HomeScreen(
             }
         }
 
-        // Max Popup
+        // Max Popup (Updated with Nudge)
         if (showMaxPopup && !homeData.maxMessage.hasPlayed) {
             Log.d("DesiMaxDebug", "Rendering Max popup: yesterday=${homeData.maxMessage.yesterday}, today=${homeData.maxMessage.today}")
             AlertDialog(
@@ -710,7 +832,7 @@ fun HomeScreen(
                 },
                 title = {
                     Text(
-                        "Max Says 💬",
+                        text = "Max Says 💬",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF212121)
@@ -719,16 +841,26 @@ fun HomeScreen(
                 text = {
                     Column {
                         Text(
-                            homeData.maxMessage.yesterday,
+                            text = homeData.maxMessage.yesterday,
                             fontSize = 16.sp,
                             color = Color(0xFF424242)
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            homeData.maxMessage.today,
+                            text = homeData.maxMessage.today,
                             fontSize = 16.sp,
                             color = Color(0xFF424242)
                         )
+                        if (!homeData.healthVitalsUpdated) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "Update your profile to set personalized goals!",
+                                fontSize = 16.sp,
+                                color = Color(0xFF4CAF50),
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.clickable { navController.navigate("profile") }
+                            )
+                        }
                     }
                 },
                 confirmButton = {
@@ -736,7 +868,11 @@ fun HomeScreen(
                         showMaxPopup = false
                         homeViewModel.markMaxMessagePlayed()
                     }) {
-                        Text("Got it!", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "Got it!",
+                            color = Color(0xFF4CAF50),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 },
                 shape = RoundedCornerShape(16.dp),
@@ -750,7 +886,7 @@ fun HomeScreen(
                 onDismissRequest = { showTrackingPopup = false },
                 title = {
                     Text(
-                        "Max Says",
+                        text = "Max Says",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF212121)
@@ -758,21 +894,20 @@ fun HomeScreen(
                 },
                 text = {
                     Text(
-                        "You're walking but not tracking! Start now?",
+                        text = "You're walking but not tracking! Start now?",
                         fontSize = 16.sp,
                         color = Color(0xFF424242)
                     )
                 },
                 confirmButton = {
                     TextButton(onClick = {
+                        val userId = commonViewModel.getAuthRepository().getAuthState().getId() ?: "1"
+                        val token = commonViewModel.getAuthRepository().getAuthState().jwt ?: ""
                         val intent = Intent(context, WorkoutTrackingService::class.java).apply {
-                            putExtra(
-                                "userId",
-                                commonViewModel.getAuthRepository().getAuthState().getId() ?: "1"
-                            )
+                            putExtra("userId", userId)
                             putExtra("workoutType", workoutType)
                             putExtra("manualStart", true)
-                            putExtra("token", commonViewModel.getAuthRepository().getAuthState().jwt ?: "")
+                            putExtra("token", token)
                         }
                         Log.d("HomeScreen", "Attempting to start WorkoutTrackingService with type: $workoutType")
                         try {
@@ -789,7 +924,11 @@ fun HomeScreen(
                             }
                         }
                     }) {
-                        Text("Start", color = Color(0xFF4CAF50), fontWeight = FontWeight.Bold)
+                        Text(
+                            text = "Start",
+                            color = Color(0xFF4CAF50),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 },
                 dismissButton = {
@@ -797,7 +936,10 @@ fun HomeScreen(
                         showTrackingPopup = false
                         commonViewModel.updateTrackedSteps(0f)
                     }) {
-                        Text("Later", color = Color(0xFF757575))
+                        Text(
+                            text = "Later",
+                            color = Color(0xFF757575)
+                        )
                     }
                 },
                 shape = RoundedCornerShape(16.dp),
@@ -811,7 +953,7 @@ fun HomeScreen(
                 onDismissRequest = { showRangePicker = false },
                 title = {
                     Text(
-                        "Select Range",
+                        text = "Select Range",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF212121)
@@ -820,20 +962,31 @@ fun HomeScreen(
                 text = {
                     Column {
                         TextButton(onClick = {
-                            homeViewModel.setDateRangeMode("Day"); showRangePicker = false
-                        }) {
-                            Text("Day", color = Color(0xFF4CAF50), fontWeight = FontWeight.Medium)
-                        }
-                        TextButton(onClick = {
-                            homeViewModel.setDateRangeMode("Week"); showRangePicker = false
-                        }) {
-                            Text("Week", color = Color(0xFF4CAF50), fontWeight = FontWeight.Medium)
-                        }
-                        TextButton(onClick = {
-                            homeViewModel.setDateRangeMode("Custom"); showRangePicker = false
+                            homeViewModel.setDateRangeMode("Day")
+                            showRangePicker = false
                         }) {
                             Text(
-                                "Custom (TBD)",
+                                text = "Day",
+                                color = Color(0xFF4CAF50),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        TextButton(onClick = {
+                            homeViewModel.setDateRangeMode("Week")
+                            showRangePicker = false
+                        }) {
+                            Text(
+                                text = "Week",
+                                color = Color(0xFF4CAF50),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        TextButton(onClick = {
+                            homeViewModel.setDateRangeMode("Custom")
+                            showRangePicker = false
+                        }) {
+                            Text(
+                                text = "Custom (TBD)",
                                 color = Color(0xFF4CAF50),
                                 fontWeight = FontWeight.Medium
                             )
@@ -852,7 +1005,7 @@ fun HomeScreen(
                 onDismissRequest = { showWorkoutPicker = false },
                 title = {
                     Text(
-                        "Select Workout Type",
+                        text = "Select Workout Type",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color(0xFF212121)
@@ -868,7 +1021,7 @@ fun HomeScreen(
                                 }
                             ) {
                                 Text(
-                                    type,
+                                    text = type,
                                     color = Color(0xFF4CAF50),
                                     fontWeight = FontWeight.Medium
                                 )

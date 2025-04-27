@@ -7,8 +7,12 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.api.StrapiApi.UserProfileRequest
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import retrofit2.Response
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -34,8 +38,16 @@ class AuthRepository @Inject constructor(
     private val _authStateFlow = MutableStateFlow(loadAuthStateFromPrefs())
     val authStateFlow: StateFlow<AuthState> get() = _authStateFlow
 
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
     init {
         Log.d("AuthRepository", "Initialized with authState: ${_authStateFlow.value}")
+        if (_authStateFlow.value.jwt != null) {
+            Log.d("AuthRepository", "JWT exists, refreshing login on init")
+            scope.launch {
+                refreshLogin()
+            }
+        }
     }
 
     fun getAuthState(): AuthState = _authStateFlow.value
@@ -66,7 +78,7 @@ class AuthRepository @Inject constructor(
         }
 
         val googleAccount = googleAuthManager.context?.let { GoogleSignIn.getLastSignedInAccount(it) }
-        Log.d("AuthRepository", "Google account found: ${googleAccount?.email}, idToken: $idToken")
+        Log.d("AuthRepository", "Google account details: email=${googleAccount?.email}, givenName=${googleAccount?.givenName}, familyName=${googleAccount?.familyName}, displayName=${googleAccount?.displayName}, idToken=$idToken")
 
         if (getAuthState().jwt == null) {
             Log.d("AuthRepository", "JWT missing, attempting Google login")
@@ -78,12 +90,14 @@ class AuthRepository @Inject constructor(
                     val loginResponse = response.body()
                     val jwt = loginResponse?.jwt
                     val userId = loginResponse?.user?.id?.toString()
-                    val userName = googleAccount?.givenName ?: "User"
-                    val displayName = googleAccount?.displayName ?: ""
-                    val lastName = if (displayName.contains(" ")) displayName.substringAfter(" ") else null
-                    Log.d("AuthRepository", "Login success: JWT=$jwt, id=$userId, name=$userName, lastName=$lastName")
-                    _authStateFlow.value = AuthState(jwt, userId, userName)
-                    saveAuthStateToPrefs(jwt, userId, userName)
+
+                    // Now ensure the first name (from `givenName`) is set
+                    val firstName = googleAccount?.givenName ?: "User" // Ensure we use `givenName`
+                    val lastName = googleAccount?.familyName ?: ""
+                    Log.d("AuthRepository", "Login success: JWT=$jwt, id=$userId, firstName=$firstName, lastName=$lastName")
+
+                    _authStateFlow.value = AuthState(jwt, userId, firstName) // Store firstName in AuthState
+                    saveAuthStateToPrefs(jwt, userId, firstName) // Store in SharedPreferences
 
                     val updateRequest = UserProfileRequest(
                         firstName = googleAccount?.givenName,
@@ -91,6 +105,7 @@ class AuthRepository @Inject constructor(
                         email = googleAccount?.email,
                         mobile = null
                     )
+
                     val updateResponse = strapiApi.updateUserProfile(
                         userId.toString(),
                         StrapiApi.UserProfileBody(updateRequest),
@@ -114,6 +129,7 @@ class AuthRepository @Inject constructor(
         Log.d("AuthRepository", "Already logged in: ${_authStateFlow.value}")
         return true
     }
+
 
     suspend fun loginWithCredentials(email: String, password: String) {
         if (email.isEmpty() || password.isEmpty()) {
@@ -156,8 +172,11 @@ class AuthRepository @Inject constructor(
     fun logout() {
         googleAuthManager.signOut()
         _authStateFlow.value = AuthState(null, null, null)
-        saveAuthStateToPrefs(null, null, null)
-        Log.d("AuthRepository", "Logged out, cleared auth state")
+        with(prefs.edit()) {
+            clear() // Clear all preferences to ensure no stale data remains
+            apply()
+        }
+        Log.d("AuthRepository", "Logged out, cleared auth state and preferences")
     }
 
     fun updateUserName(newName: String) {
@@ -167,6 +186,7 @@ class AuthRepository @Inject constructor(
         Log.d("AuthRepository", "Updated userName to $newName, new authState: ${_authStateFlow.value}")
     }
 }
+
 
 interface AuthApi {
     @POST("google-login")

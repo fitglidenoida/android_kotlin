@@ -20,21 +20,40 @@ class HealthConnectRepository(private val manager: HealthConnectManager) {
     }
 
     suspend fun getWorkout(date: LocalDate): WorkoutData {
-        val workoutData = manager.readExerciseSessions(date)
-        Log.d("HealthConnectRepository", "readExerciseSessions for $date: $workoutData")
+        val workoutSessions = manager.readExerciseSessions(date)
+        Log.d("HealthConnectRepository", "readExerciseSessions for $date: $workoutSessions")
 
-        // Fetch steps for distance estimate if workoutData.distance is null
+        // Fetch steps for distance estimate if no sessions are found or distance is null
         val steps = getSteps(date)
         val estimatedDistance = steps * 0.7 // Rough estimate: 0.7m per step
 
+        // If no sessions are found, return a default WorkoutData
+        if (workoutSessions.isEmpty()) {
+            return WorkoutData(
+                distance = estimatedDistance.toDouble(),
+                duration = Duration.ZERO,
+                calories = 0.0,
+                heartRateAvg = 0L,
+                start = null,
+                end = null,
+                type = "Unknown"
+            ).also {
+                Log.d("HealthConnectRepository", "No workout sessions found for $date, returning default: $it")
+            }
+        }
+
+        // Select the most recent session (based on start time)
+        val mostRecentSession = workoutSessions.maxByOrNull { it.start?.toEpochSecond(ZoneId.systemDefault().rules.getOffset(it.start)) ?: 0 }
+            ?: workoutSessions.first()
+
         return WorkoutData(
-            distance = workoutData.distance ?: estimatedDistance.toDouble(),
-            duration = workoutData.duration,
-            calories = workoutData.calories ?: (workoutData.duration?.toMinutes()?.times(10)?.toDouble() ?: 0.0), // Estimate if null
-            heartRateAvg = workoutData.heartRateAvg,
-            start = workoutData.start,
-            end = workoutData.end,
-            type = workoutData.type
+            distance = mostRecentSession.distance ?: estimatedDistance.toDouble(),
+            duration = mostRecentSession.duration ?: Duration.ZERO,
+            calories = mostRecentSession.calories ?: (mostRecentSession.duration?.toMinutes()?.times(10)?.toDouble() ?: 0.0),
+            heartRateAvg = mostRecentSession.heartRateAvg ?: 0L,
+            start = mostRecentSession.start,
+            end = mostRecentSession.end,
+            type = mostRecentSession.type
         ).also {
             Log.d("HealthConnectRepository", "Workout data for $date: $it")
         }

@@ -17,7 +17,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
@@ -28,16 +27,14 @@ import com.trailblazewellness.fitglide.auth.AuthRepository
 import com.trailblazewellness.fitglide.auth.GoogleAuthManager
 import com.trailblazewellness.fitglide.data.api.StrapiRepository
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
-import com.trailblazewellness.fitglide.data.max.MaxAiService
 import com.trailblazewellness.fitglide.data.workers.WorkoutTrackingService
 import com.trailblazewellness.fitglide.data.workers.scheduleHydrationReminder
 import com.trailblazewellness.fitglide.presentation.LoginScreen
 import com.trailblazewellness.fitglide.presentation.home.HomeViewModel
 import com.trailblazewellness.fitglide.presentation.navigation.HealthConnectNavigation
 import com.trailblazewellness.fitglide.presentation.onboarding.SignupScreen
+import com.trailblazewellness.fitglide.presentation.successstory.SuccessStoryViewModel
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
@@ -51,6 +48,7 @@ class MainActivity : ComponentActivity() {
     // ViewModels
     private lateinit var commonViewModel: CommonViewModel
     private lateinit var homeViewModel: HomeViewModel
+    private lateinit var successStoryViewModel: SuccessStoryViewModel // Add SuccessStoryViewModel
 
     // Permissions
     private val healthPermissions = setOf(
@@ -67,7 +65,8 @@ class MainActivity : ComponentActivity() {
         "android.permission.health.READ_DISTANCE",
         "android.permission.health.READ_TOTAL_CALORIES_BURNED",
         "android.permission.health.WRITE_STEPS",
-        "android.permission.health.READ_NUTRITION"
+        "android.permission.health.READ_NUTRITION",
+        "android.permission.health.READ_HYDRATION"
     )
 
     private val permissionLauncher = registerForActivityResult(
@@ -83,10 +82,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Step 1: Init dependencies
+        // Step 1: Init dependencies synchronously
         initializeDependencies()
 
-        // Step 2: Setup Compose UI
+        // Step 2: Setup background tasks synchronously
+        setupBackgroundTasks()
+
+        // Step 3: Setup Compose UI
         setContent {
             FitGlideTheme {
                 Surface(
@@ -100,11 +102,6 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Step 3: Background Setup
-        lifecycleScope.launch {
-            setupBackgroundTasks()
-        }
-
         Log.d("DesiMaxDebug", "📱 FitGlide app launched. Logcat is working!")
     }
 
@@ -115,10 +112,19 @@ class MainActivity : ComponentActivity() {
         strapiRepository = StrapiRepository(authRepository.strapiApi, authRepository)
 
         commonViewModel = CommonViewModel(this, strapiRepository, healthConnectManager, authRepository)
-        homeViewModel = HomeViewModel(commonViewModel, this, healthConnectManager) // Pass context
-        MainActivity.commonViewModel = commonViewModel
 
-//        MaxAiService.initTTS(this)
+        // Initialize successStoryViewModel first, as homeViewModel depends on it
+        successStoryViewModel = SuccessStoryViewModel(
+            strapiRepository = strapiRepository,
+            authRepository = authRepository,
+            currentUserId = authRepository.getAuthState().getId() ?: "unknown",
+            authToken = "Bearer ${authRepository.getAuthState().jwt ?: ""}"
+        )
+
+        // Now initialize homeViewModel with successStoryViewModel
+        homeViewModel = HomeViewModel(commonViewModel, this, healthConnectManager, successStoryViewModel)
+
+        MainActivity.commonViewModel = commonViewModel
     }
 
     private fun setupBackgroundTasks() {
@@ -185,7 +191,9 @@ class MainActivity : ComponentActivity() {
                     authToken = authState.jwt ?: "",
                     rootNavController = navController,
                     userName = authState.userName ?: "User",
-                    commonViewModel = commonViewModel
+                    commonViewModel = commonViewModel,
+                    homeViewModel = homeViewModel,
+                    successStoryViewModel = successStoryViewModel
                 )
             }
         }

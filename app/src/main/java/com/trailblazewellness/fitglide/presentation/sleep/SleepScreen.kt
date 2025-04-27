@@ -90,100 +90,170 @@ fun SleepScreen(
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SleepScoreArc(
-                    score = sleepData.score,
-                    debt = sleepData.debt,
-                    injuryRisk = sleepData.injuryRisk,
-                    onClick = { showDetails = true }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                AchievementCard(streak = sleepData.streak)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    SleepTimeArc("Suggested", sleepData.restTime, 10f, Color(0xFF4CAF50))
-                    SleepTimeArc("Slept", sleepData.actualSleepTime, sleepData.restTime, Color(0xFF42A5F5))
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "Sleep Stages",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
-                )
-                SleepStagesArcs(stages = sleepData.stages)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(2.dp, Color(0xFF4CAF50)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .padding(12.dp)
-                            .fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally // Center-align title
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Bedtime,
-                                contentDescription = "Sleep",
-                                tint = Color(0xFF4CAF50),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Actual Sleep Data",
-                                fontSize = 16.sp,
-                                color = Color(0xFF212121),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                if (sleepData == null) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Loading sleep data...",
+                        fontSize = 16.sp,
+                        color = Color(0xFF757575)
+                    )
+                } else {
+                    if (sleepData?.insights?.any { it.contains("date of birth", ignoreCase = true) } == true) {
+                        Text(
+                            text = sleepData?.insights?.firstOrNull() ?: "Error fetching sleep data",
+                            fontSize = 16.sp,
+                            color = Color(0xFF757575),
+                            modifier = Modifier.padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = { navController.navigate("profile") },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00C4B4))
                         ) {
-                            Text(
-                                text = "Bedtime: ${sleepData.bedtime}",
-                                fontSize = 14.sp,
-                                color = Color(0xFF212121)
-                            )
-                            Text(
-                                text = "Wake Time: ${sleepData.alarm}",
-                                fontSize = 14.sp,
-                                color = Color(0xFF212121)
-                            )
+                            Text("Update Profile", color = Color.White)
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    } else if (sleepData?.score == 0f && sleepData?.insights?.isNotEmpty() == true) {
+                        Text(
+                            text = sleepData?.insights?.firstOrNull() ?: "No sleep recorded",
+                            fontSize = 16.sp,
+                            color = Color(0xFF757575),
+                            modifier = Modifier.padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    SleepScoreArc(
+                        score = sleepData?.score ?: 0f,
+                        debt = sleepData?.debt ?: "0h0m",
+                        injuryRisk = sleepData?.injuryRisk ?: 0f,
+                        onClick = { showDetails = true }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AchievementCard(streak = sleepData?.streak ?: 0)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        SleepTimeArc("Suggested", sleepData?.restTime ?: 8f, 10f, Color(0xFF4CAF50))
+                        SleepTimeArc("Slept", sleepData?.actualSleepTime ?: 0f, sleepData?.restTime ?: 10f, Color(0xFF42A5F5))
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Sleep Stages",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF212121)
+                    )
+                    SleepStagesArcs(stages = if (sleepData?.stages.isNullOrEmpty()) listOf(
+                        SleepStage(0, "Light"),
+                        SleepStage(0, "Deep"),
+                        SleepStage(0, "REM")
+                    ) else sleepData?.stages ?: emptyList())
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(2.dp, Color(0xFF4CAF50)),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Bedtime,
+                                    contentDescription = "Sleep",
+                                    tint = Color(0xFF4CAF50),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Actual Sleep Data",
+                                    fontSize = 16.sp,
+                                    color = Color(0xFF212121),
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                Text(
+                                    text = "Bedtime: ${sleepData?.bedtime ?: "N/A"}",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF212121)
+                                )
+                                Text(
+                                    text = "Wake Time: ${sleepData?.alarm ?: "N/A"}${if (sleepData?.alarm == "8:00 AM") " (default)" else ""}",
+                                    fontSize = 14.sp,
+                                    color = Color(0xFF212121)
+                                )
+                            }
                         }
                     }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                Text(
-                    text = "Insights",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
-                )
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(sleepData.insights) { insight ->
-                        InsightCard(text = insight)
+                    Text(
+                        text = "Sleep Score",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF212121)
+                    )
+                    Text(
+                        text = sleepData?.scoreLegend?.overallScoreDescription ?: "No data",
+                        fontSize = 16.sp,
+                        color = Color(0xFF424242),
+                        modifier = Modifier.padding(8.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Insights",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF212121)
+                    )
+                    if (sleepData?.insights.isNullOrEmpty()) {
+                        Text(
+                            text = "Nothing to show here",
+                            fontSize = 16.sp,
+                            color = Color(0xFF757575),
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    } else {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(sleepData?.insights ?: emptyList()) { insight ->
+                                InsightCard(
+                                    text = insight,
+                                    onClick = {
+                                        if (insight.contains("update your date of birth", ignoreCase = true)) {
+                                            navController.navigate("profile")
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
-                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            if (showDetails) {
+            if (showDetails && sleepData != null) {
                 SleepDetailsOverlay(
-                    sleepData = sleepData,
+                    sleepData = sleepData!!,
                     onDismiss = { showDetails = false }
                 )
             }
@@ -210,7 +280,7 @@ fun SleepScreen(
             }
 
             AnimatedVisibility(
-                visible = sleepData.challengeActive && !challengeClaimed,
+                visible = sleepData?.challengeActive == true && !challengeClaimed,
                 enter = fadeIn(animationSpec = tween(500)),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -312,7 +382,7 @@ fun SleepStagesArcs(stages: List<SleepStage>) {
                         drawArc(
                             color = colors[index % colors.size],
                             startAngle = -90f,
-                            sweepAngle = 360f * (stage.duration / totalDuration),
+                            sweepAngle = if (totalDuration > 0) 360f * (stage.duration / totalDuration) else 0f,
                             useCenter = false,
                             topLeft = Offset(size.width / 2 - radius - 5.dp.toPx(), size.height / 2 - radius - 5.dp.toPx()),
                             size = Size((radius + 5.dp.toPx()) * 2, (radius + 5.dp.toPx()) * 2),
@@ -357,7 +427,7 @@ fun SleepTimeArc(label: String, value: Float, max: Float, color: Color) {
                 drawArc(
                     color = color,
                     startAngle = -90f,
-                    sweepAngle = 360f * (value / max),
+                    sweepAngle = if (max > 0) 360f * (value / max) else 0f,
                     useCenter = false,
                     topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                     size = Size(radius * 2, radius * 2),
@@ -420,13 +490,14 @@ fun AchievementCard(streak: Int) {
 }
 
 @Composable
-fun InsightCard(text: String) {
+fun InsightCard(text: String, onClick: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = Color(0xFFE8F5E9),
         modifier = Modifier
             .width(200.dp)
             .padding(8.dp)
+            .clickable(onClick = onClick)
     ) {
         Text(
             text = text,
@@ -463,6 +534,9 @@ fun SleepDetailsOverlay(sleepData: SleepDataUi, onDismiss: () -> Unit) {
                 Text("Injury Risk: ${sleepData.injuryRisk}%", fontSize = 16.sp)
                 Text("Rest Tonight: ${sleepData.restTime}h", fontSize = 16.sp)
                 Text("Slept Last Night: ${formatSleepTime(sleepData.actualSleepTime)}", fontSize = 16.sp)
+                Spacer(modifier = Modifier.height(16.dp))
+                Text("Score Explanation", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(sleepData.scoreLegend.overallScoreDescription, fontSize = 14.sp)
             }
         }
     }

@@ -10,24 +10,24 @@ import com.trailblazewellness.fitglide.auth.AuthRepository
 import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.api.StrapiRepository
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectRepository
+import com.trailblazewellness.fitglide.presentation.home.HomeViewModel
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.Period
-import kotlin.math.pow
 
 data class ProfileData(
     val weight: Double? = null,
     val height: Double? = null,
     val gender: String? = null,
     val dob: String? = null,
-    val activityLevel: String? = "Sedentary (little/no exercise)",
+    val activityLevel: String? = null,
     val bmi: Double? = null,
     val bmr: Double? = null,
     val tdee: Double? = null,
     val weightLossGoal: Double? = null,
     val weightLossStrategy: String? = null,
-    val stepGoal: Int? = null, // No default, fully dynamic from Strapi
-    val waterGoal: Float? = null, // No default, fully dynamic from Strapi
+    val stepGoal: Int? = null,
+    val waterGoal: Float? = null,
     val calorieGoal: Int? = null,
     val firstName: String? = null,
     val lastName: String? = null,
@@ -40,10 +40,15 @@ data class ProfileData(
 class ProfileViewModel(
     private val strapiRepository: StrapiRepository,
     private val authRepository: AuthRepository,
-    private val healthConnectRepository: HealthConnectRepository
+    private val healthConnectRepository: HealthConnectRepository,
+    private val homeViewModel: HomeViewModel // Still needed for homeData, but not for badges
 ) : ViewModel() {
     var profileData by mutableStateOf(ProfileData())
     private var documentId: String? = null
+
+    // Configurable base values (could be fetched from Strapi or a config)
+    private val defaultStepBase: Int = 10000
+    private val defaultWaterBase: Float = 2.0f
 
     init {
         fetchProfileData()
@@ -135,16 +140,18 @@ class ProfileViewModel(
         val workoutResponse = strapiRepository.getWorkoutLogs(userId, LocalDate.now().minusDays(1).toString(), token)
         return if (workoutResponse.isSuccessful && workoutResponse.body()?.data?.isNotEmpty() == true) {
             val workoutEntry = workoutResponse.body()!!.data.first()
-            workoutEntry.calories?.toDouble() ?: 0.0 // Fixed: lowercase 'calories'
+            workoutEntry.calories?.toDouble() ?: 0.0
         } else {
-            when (profileData.activityLevel) {
-                "Sedentary (little/no exercise)" -> 200.0
-                "Light exercise (1-3 days/week)" -> 300.0
-                "Moderate exercise (3-5 days/week)" -> 400.0
-                "Heavy exercise (6-7 days/week)" -> 500.0
-                "Very heavy exercise (Twice/day)" -> 600.0
-                else -> 200.0
+            // Use activityLevel to determine a more dynamic fallback
+            val intensityMultiplier = when (profileData.activityLevel) {
+                "Sedentary (little/no exercise)" -> 1.0
+                "Light exercise (1-3 days/week)" -> 1.5
+                "Moderate exercise (3-5 days/week)" -> 2.0
+                "Heavy exercise (6-7 days/week)" -> 2.5
+                "Very heavy exercise (Twice/day)" -> 3.0
+                else -> 1.0 // Default to sedentary if not set
             }
+            200.0 * intensityMultiplier // Base value adjusted by activity level
         }
     }
 
@@ -193,7 +200,7 @@ class ProfileViewModel(
                     val calorieBonus = if (workoutIntensity > 500.0) 200.0 else 0.0
                     val calorieGoal = (tdee - deficit + calorieBonus).toInt()
 
-                    val stepBase = 10000
+                    val stepBase = defaultStepBase
                     val stepAdjust = when (strategy) {
                         "Lean-(0.25 kg/week)" -> 1000
                         "Aggressive-(0.5 kg/week)" -> 2000
@@ -203,7 +210,7 @@ class ProfileViewModel(
                     val stepWorkoutBoost = (workoutIntensity / 500.0).toInt() * 500
                     val stepGoal = stepBase + stepAdjust + stepWorkoutBoost
 
-                    val waterBase = 2.0f
+                    val waterBase = defaultWaterBase
                     val waterAdjust = when (strategy) {
                         "Lean-(0.25 kg/week)" -> 0.25f
                         "Aggressive-(0.5 kg/week)" -> 0.5f
@@ -212,9 +219,6 @@ class ProfileViewModel(
                     }
                     val waterWorkoutBoost = (workoutIntensity / 500.0).toFloat() * 0.1f
                     val waterGoal = waterBase + waterAdjust + waterWorkoutBoost
-
-                    val sleepBonus = if (workoutIntensity > 500.0) 30 else 0
-                    Log.d("ProfileViewModel", "Recommend +$sleepBonus min sleep for recovery")
 
                     profileData = profileData.copy(
                         bmi = bmi,

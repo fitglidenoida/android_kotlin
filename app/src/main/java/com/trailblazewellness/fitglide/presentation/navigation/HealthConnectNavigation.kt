@@ -39,7 +39,10 @@ import com.trailblazewellness.fitglide.presentation.sleep.SleepScreen
 import com.trailblazewellness.fitglide.presentation.sleep.SleepViewModel
 import com.trailblazewellness.fitglide.presentation.social.ChallengeDetailScreen
 import com.trailblazewellness.fitglide.presentation.strava.StravaAuthViewModel
+import com.trailblazewellness.fitglide.presentation.successstory.SuccessStoryViewModel
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
+import com.trailblazewellness.fitglide.presentation.workouts.WorkoutDetailScreen
+import com.trailblazewellness.fitglide.presentation.workouts.WorkoutPlanScreen
 import com.trailblazewellness.fitglide.presentation.workouts.WorkoutScreen
 import com.trailblazewellness.fitglide.presentation.workouts.WorkoutViewModel
 import retrofit2.Retrofit
@@ -55,7 +58,9 @@ fun HealthConnectNavigation(
     authToken: String,
     rootNavController: NavController,
     userName: String,
-    commonViewModel: CommonViewModel
+    commonViewModel: CommonViewModel,
+    homeViewModel: HomeViewModel,
+    successStoryViewModel: SuccessStoryViewModel
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -64,14 +69,14 @@ fun HealthConnectNavigation(
     val formattedAuthToken = "Bearer $authToken"
     val healthConnectRepository = HealthConnectRepository(healthConnectManager)
 
-    val homeViewModel = HomeViewModel(commonViewModel, context, healthConnectManager)
-    val profileViewModel = ProfileViewModel(strapiRepository, authRepository, healthConnectRepository)
-    val sleepViewModel = SleepViewModel(healthConnectManager, strapiRepository, authRepository)
+    val profileViewModel = ProfileViewModel(strapiRepository, authRepository, healthConnectRepository, homeViewModel)
+    val sleepViewModel = SleepViewModel(healthConnectManager, strapiRepository, authRepository, context)
     val mealsViewModel = MealsViewModel(strapiRepository, healthConnectRepository, authRepository)
     val workoutViewModel = WorkoutViewModel(
         strapiRepository = strapiRepository,
         healthConnectManager = healthConnectManager,
         homeViewModel = homeViewModel,
+        commonViewModel = commonViewModel,
         authToken = formattedAuthToken,
         userId = authRepository.getAuthState().getId().toString()
     )
@@ -149,6 +154,7 @@ fun HealthConnectNavigation(
                             healthConnectManager = healthConnectManager,
                             homeViewModel = homeViewModel,
                             commonViewModel = commonViewModel,
+                            successStoryViewModel = successStoryViewModel,
                             userName = userName
                         )
                     }
@@ -156,7 +162,23 @@ fun HealthConnectNavigation(
                         WorkoutScreen(
                             viewModel = workoutViewModel,
                             navController = navController,
-                            userName = userName
+                            userName = userName,
+                            homeViewModel = homeViewModel,
+                            commonViewModel = commonViewModel
+                        )
+                    }
+                    composable("workout_plan") {
+                        WorkoutPlanScreen(
+                            navController = navController,
+                            viewModel = workoutViewModel
+                        )
+                    }
+                    composable("workout_detail/{workoutId}") { backStackEntry ->
+                        val workoutId = backStackEntry.arguments?.getString("workoutId") ?: ""
+                        WorkoutDetailScreen(
+                            navController = navController,
+                            workoutId = workoutId,
+                            viewModel = workoutViewModel
                         )
                     }
                     composable("sleep") {
@@ -198,6 +220,13 @@ fun HealthConnectNavigation(
                         val challengeId = backStackEntry.arguments?.getString("challengeId") ?: return@composable
                         val userId = authRepository.authStateFlow.collectAsState().value.getId() ?: ""
                         ChallengeDetailScreen(challengeId, commonViewModel, navController, userId)
+                    }
+                    composable("weight_loss_story") {
+                        // Placeholder for WeightLossStoryScreen
+                        Text(
+                            text = "Weight Loss Story Screen - TBD",
+                            modifier = Modifier.padding(16.dp)
+                        )
                     }
                 }
             }

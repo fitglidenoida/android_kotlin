@@ -228,6 +228,46 @@ class StrapiRepository(
         }
     }
 
+    // Weight Loss Stories
+    suspend fun getWeightLossStories(token: String): Response<StrapiApi.WeightLossStoryListResponse> {
+        Log.d(TAG, "Fetching all weight loss stories")
+        return strapiApi.getWeightLossStories("users_permissions_user", token).also { response ->
+            logResponse("getWeightLossStories", response)
+        }
+    }
+
+    suspend fun getWeightLossStoriesForUser(userId: String, token: String): Response<StrapiApi.WeightLossStoryListResponse> {
+        Log.d(TAG, "Fetching weight loss stories for userId: $userId")
+        return strapiApi.getWeightLossStoriesForUser(userId, "users_permissions_user", token).also { response ->
+            logResponse("getWeightLossStoriesForUser", response)
+        }
+    }
+
+    suspend fun createWeightLossStory(request: StrapiApi.WeightLossStoryRequest, token: String): Response<StrapiApi.WeightLossStoryResponse> {
+        val body = StrapiApi.WeightLossStoryBody(request)
+        Log.d(TAG, "Creating weight loss story: $body with token: $token")
+        return strapiApi.postWeightLossStory(body, token).also { response ->
+            logResponse("createWeightLossStory", response)
+        }
+    }
+
+    suspend fun updateWeightLossStoryVisibility(id: String, visibility: String, token: String): Response<StrapiApi.WeightLossStoryResponse> {
+        val request = StrapiApi.WeightLossStoryRequest(
+            storyId = "", // Not needed for update
+            thenWeight = 0.0, // Not updating these fields
+            nowWeight = 0.0,
+            weightLost = 0.0,
+            storyText = "", // Not updating storyText
+            usersPermissionsUser = StrapiApi.UserId(""), // Not updating user
+            visibility = visibility
+        )
+        val body = StrapiApi.WeightLossStoryBody(request)
+        Log.d(TAG, "Updating visibility for weight loss story with id: $id to $visibility")
+        return strapiApi.updateWeightLossStory(id, body, token).also { response ->
+            logResponse("updateWeightLossStoryVisibility", response)
+        }
+    }
+
     // Health Vitals
     suspend fun getHealthVitals(userId: String, token: String): Response<StrapiApi.HealthVitalsListResponse> {
         Log.d(TAG, "Fetching health vitals for userId: $userId")
@@ -515,14 +555,45 @@ class StrapiRepository(
         }
     }
 
+    // Strava Integration
+    suspend fun initiateStravaAuth(token: String): Response<StrapiApi.StravaAuthResponse> {
+        Log.d(TAG, "Initiating Strava auth")
+        return strapiApi.initiateStravaAuth(token).also { response ->
+            logResponse("initiateStravaAuth", response)
+        }
+    }
+
+    suspend fun exchangeStravaCode(code: String, token: String): Response<StrapiApi.StravaTokenResponse> {
+        val request = StrapiApi.StravaTokenRequest(code)
+        Log.d(TAG, "Exchanging Strava code: $code")
+        return strapiApi.exchangeStravaCode(request, token).also { response ->
+            logResponse("exchangeStravaCode", response)
+        }
+    }
+
+    suspend fun syncStravaActivities(perPage: Int, token: String): Response<StrapiApi.WorkoutLogListResponse> {
+        Log.d(TAG, "Syncing Strava activities with perPage: $perPage")
+        return strapiApi.syncStravaActivities(perPage, token).also { response ->
+            logResponse("syncStravaActivities", response)
+        }
+    }
+
+    // Desi Messages and Badges
     suspend fun getDesiMessages(token: String): Response<StrapiApi.DesiMessageResponse> {
-        return strapiApi.getDesiMessages("*", token)
+        Log.d(TAG, "Fetching desi messages")
+        return strapiApi.getDesiMessages("*", token).also { response ->
+            logResponse("getDesiMessages", response)
+        }
     }
 
     suspend fun getBadges(token: String): Response<StrapiApi.BadgeListResponse> {
-        return strapiApi.getBadges("*", token)
+        Log.d(TAG, "Fetching badges")
+        return strapiApi.getBadges("*", token).also { response ->
+            logResponse("getBadges", response)
+        }
     }
 
+    // Utility
     private fun <T> logResponse(method: String, response: Response<T>) {
         if (response.isSuccessful) {
             Log.d(TAG, "$method successful: ${response.code()} - Body: ${response.body()}")

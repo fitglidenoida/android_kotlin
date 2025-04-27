@@ -19,12 +19,12 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.location.*
+import com.trailblazewellness.fitglide.MainActivity
 import com.trailblazewellness.fitglide.R
 import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.api.StrapiRepository
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
-import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -32,18 +32,11 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
-import javax.inject.Inject
 
-@AndroidEntryPoint
 class WorkoutTrackingService : Service() {
-    @Inject
-    lateinit var healthConnect: HealthConnectManager
-
-    @Inject
-    lateinit var strapiRepository: StrapiRepository
-
-    @Inject
-    lateinit var commonViewModel: CommonViewModel
+    private var commonViewModel: CommonViewModel? = null
+    private lateinit var healthConnect: HealthConnectManager
+    private lateinit var strapiRepository: StrapiRepository
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var sensorManager: SensorManager
@@ -77,11 +70,9 @@ class WorkoutTrackingService : Service() {
 
     override fun onCreate() {
         super.onCreate()
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
-        Log.d("WorkoutTrackingService", "Service created")
+        Log.d("WorkoutTrackingService", "onCreate: Initializing service")
 
+        // Notification Channel Setup
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
@@ -93,6 +84,34 @@ class WorkoutTrackingService : Service() {
             }
             notificationManager.createNotificationChannel(channel)
         }
+
+        // Start foreground service immediately to avoid ForegroundServiceDidNotStartInTimeException
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("FitGlide")
+            .setContentText("Tracking your workout")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setSilent(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+
+        startForeground(NOTIFICATION_ID, notification)
+        isServiceRunning = true
+        Log.d("WorkoutTrackingService", "Foreground service started")
+
+        // Initialize dependencies
+        healthConnect = HealthConnectManager(this)
+        try {
+            strapiRepository = MainActivity.commonViewModel.getStrapiRepository()
+            commonViewModel = MainActivity.commonViewModel
+            Log.d("WorkoutTrackingService", "CommonViewModel accessed via MainActivity")
+        } catch (e: Exception) {
+            Log.e("WorkoutTrackingService", "Error accessing CommonViewModel: ${e.message}", e)
+            // Continue running the service, but commonViewModel will be null
+        }
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+        stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
 
         val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
             .setMinUpdateIntervalMillis(500)
@@ -119,11 +138,11 @@ class WorkoutTrackingService : Service() {
                         if (!isTracking) {
                             movementTime += 1000L
                             if (movementTime >= MOVEMENT_THRESHOLD_MS && monitoredSteps > 0) {
-                                commonViewModel.updateTrackedSteps(monitoredSteps.toFloat())
+                                commonViewModel?.updateTrackedSteps(monitoredSteps.toFloat())
                             }
                         } else {
                             totalSteps = monitoredSteps
-                            commonViewModel.updateTrackedSteps(totalSteps.toFloat())
+                            commonViewModel?.updateTrackedSteps(totalSteps.toFloat())
                         }
                     } else if (!isTracking) {
                         movementTime = 0L
@@ -142,9 +161,15 @@ class WorkoutTrackingService : Service() {
                         monitoredSteps = currentSteps - initialStepCount
                         if (isTracking && (System.currentTimeMillis() - lastMovedTime) < MOVEMENT_TIMEOUT_MS) {
                             totalSteps = monitoredSteps
-                            commonViewModel.updateTrackedSteps(totalSteps.toFloat())
+                            commonViewModel?.updateTrackedSteps(totalSteps.toFloat())
                         } else if (!isTracking) {
-                            commonViewModel.updateTrackedSteps(monitoredSteps.toFloat())
+                            commonViewModel?.updateTrackedSteps(monitoredSteps.toFloat())
+                        } else {
+                            // Case: isTracking is true but time since last movement exceeds MOVEMENT_TIMEOUT_MS
+                            Log.d("WorkoutTrackingService", "Tracking timeout reached, resetting tracking state")
+                            isTracking = false
+                            totalSteps = monitoredSteps
+                            commonViewModel?.updateTrackedSteps(totalSteps.toFloat())
                         }
                     }
                 }
@@ -158,7 +183,7 @@ class WorkoutTrackingService : Service() {
             Log.d("WorkoutTrackingService", "Step sensor registered")
         } else {
             Log.w("WorkoutTrackingService", "ACTIVITY_RECOGNITION permission missing")
-            commonViewModel.postUiMessage("Please grant activity recognition permission")
+            commonViewModel?.postUiMessage("Please grant activity recognition permission")
         }
 
         requestLocationUpdates()
@@ -176,11 +201,9 @@ class WorkoutTrackingService : Service() {
             Log.d("WorkoutTrackingService", "Location updates requested")
         } else {
             Log.w("WorkoutTrackingService", "ACCESS_FINE_LOCATION permission missing")
-            commonViewModel.postUiMessage("Please grant location permission")
+            commonViewModel?.postUiMessage("Please grant location permission")
         }
     }
-
-    override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         userId = intent?.getStringExtra("userId") ?: "1"
@@ -192,7 +215,7 @@ class WorkoutTrackingService : Service() {
 
         if (!hasRequiredPermissions()) {
             Log.e("WorkoutTrackingService", "Missing required permissions")
-            commonViewModel.postUiMessage("Missing permissions for tracking")
+            commonViewModel?.postUiMessage("Missing permissions for tracking")
             stopSelf()
             return START_NOT_STICKY
         }
@@ -201,30 +224,9 @@ class WorkoutTrackingService : Service() {
         val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
         if (resultCode != ConnectionResult.SUCCESS) {
             Log.e("WorkoutTrackingService", "Google Play Services unavailable: $resultCode")
-            commonViewModel.postUiMessage("Google Play Services unavailable")
+            commonViewModel?.postUiMessage("Google Play Services unavailable")
             stopSelf()
             return START_NOT_STICKY
-        }
-
-        if (!isServiceRunning) {
-            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("FitGlide")
-                .setContentText("Tracking your $workoutType workout")
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setSilent(true)
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .build()
-
-            try {
-                startForeground(NOTIFICATION_ID, notification)
-                isServiceRunning = true
-                Log.d("WorkoutTrackingService", "Foreground service started")
-            } catch (e: Exception) {
-                Log.e("WorkoutTrackingService", "Foreground start failed: ${e.message}", e)
-                commonViewModel.postUiMessage("Failed to start tracking service")
-                stopSelf()
-                return START_NOT_STICKY
-            }
         }
 
         if (manualStart && !isTracking) {
@@ -250,7 +252,7 @@ class WorkoutTrackingService : Service() {
         totalSteps = monitoredSteps
         lastStepCount = monitoredSteps
         Log.d("WorkoutTrackingService", "Tracking started with initial steps: $totalSteps")
-        commonViewModel.updateTrackedSteps(totalSteps.toFloat())
+        commonViewModel?.updateTrackedSteps(totalSteps.toFloat())
     }
 
     private fun startPeriodicSync() {
@@ -284,17 +286,19 @@ class WorkoutTrackingService : Service() {
                             Log.d("WorkoutTrackingService", "Synced to Strapi: steps=$stepsToSync, distance=$distanceMiles")
                         } else {
                             Log.e("WorkoutTrackingService", "Strapi sync failed: ${response.code()} - ${response.errorBody()?.string()}")
-                            commonViewModel.postUiMessage("Failed to sync workout data")
+                            commonViewModel?.postUiMessage("Failed to sync workout data")
                         }
                     } catch (e: Exception) {
                         Log.e("WorkoutTrackingService", "Strapi sync error: ${e.message}", e)
-                        commonViewModel.postUiMessage("Error syncing workout: ${e.message}")
+                        commonViewModel?.postUiMessage("Error syncing workout: ${e.message}")
                     }
                 }
-                commonViewModel.updateTrackedSteps(stepsToSync.toFloat())
+                commonViewModel?.updateTrackedSteps(stepsToSync.toFloat())
             }
         }
     }
+
+    override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
         super.onDestroy()
@@ -305,7 +309,7 @@ class WorkoutTrackingService : Service() {
         }
         isServiceRunning = false
         isTracking = false
-        commonViewModel.updateTrackedSteps(0f)
+        commonViewModel?.updateTrackedSteps(0f)
         Log.d("WorkoutTrackingService", "Service destroyed")
     }
 }

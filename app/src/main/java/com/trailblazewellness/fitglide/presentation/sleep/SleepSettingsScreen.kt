@@ -28,9 +28,14 @@ fun SleepSettingsContent(
 ) {
     val sleepData by viewModel.sleepData.collectAsState()
     var syncEnabled by remember { mutableStateOf(true) }
-    var sleepGoal by remember { mutableStateOf(sleepData.restTime) }
+    var sleepGoal by remember { mutableStateOf(8f) } // Default to 8 hours
     var selectedSound by remember { mutableStateOf("Rain") }
     val scrollState = rememberScrollState()
+
+    // Update sleepGoal when sleepData changes
+    LaunchedEffect(sleepData) {
+        sleepData?.restTime?.let { sleepGoal = it }
+    }
 
     FitGlideTheme {
         Scaffold(

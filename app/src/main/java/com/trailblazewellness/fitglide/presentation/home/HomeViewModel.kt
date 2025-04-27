@@ -7,64 +7,114 @@ import androidx.lifecycle.viewModelScope
 import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
 import com.trailblazewellness.fitglide.data.max.MaxAiService
+import com.trailblazewellness.fitglide.presentation.sleep.SleepViewModel
+import com.trailblazewellness.fitglide.presentation.successstory.SuccessStoryViewModel
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
+import java.time.Period
+import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicBoolean
-import javax.inject.Inject
 
-class HomeViewModel @Inject constructor(
+class HomeViewModel(
     private val commonViewModel: CommonViewModel,
-    @ApplicationContext private val context: Context,
-    private val healthConnectManager: HealthConnectManager
+    private val context: Context,
+    private val healthConnectManager: HealthConnectManager,
+    private val successStoryViewModel: SuccessStoryViewModel
 ) : ViewModel() {
+    private val sleepViewModel: SleepViewModel = SleepViewModel(
+        healthConnectManager,
+        commonViewModel.getStrapiRepository(),
+        commonViewModel.getAuthRepository(),
+        context
+    )
+
     private val sharedPreferences =
         context.getSharedPreferences("fitglide_prefs", Context.MODE_PRIVATE)
 
-    private val _homeData = MutableStateFlow(
-        HomeData(
-            watchSteps = 0f,
-            manualSteps = 0f,
-            trackedSteps = 0f,
-            stepGoal = 11000f,
-            sleepHours = 0f,
-            caloriesBurned = 0f,
-            heartRate = 0f,
-            maxHeartRate = 200f,
-            hydration = 0f,
-            caloriesLogged = 0f,
-            weightLost = 0f,
-            bmr = 2000,
-            stressScore = "Low",
-            challengeOrAnnouncement = "Weekly Step Challenge!",
-            streak = 0,
-            showStories = true,
-            storiesOrLeaderboard = listOf("User: 10K steps"),
-            maxMessage = MaxMessage("", "", false),
-            isTracking = false,
-            dateRangeMode = "Day",
-            badges = emptyList()
-        )
-    )
+    private val _homeData = MutableStateFlow(HomeData())
     val homeData: StateFlow<HomeData> = _homeData.asStateFlow()
 
     private val _fetchedBadges = MutableStateFlow<List<StrapiApi.Badge>>(emptyList())
     private val hasFetchedMessages = AtomicBoolean(false)
 
+    // Navigation trigger for FAB
+    private val _navigateToCreateStory = MutableStateFlow(false)
+    val navigateToCreateStory: StateFlow<Boolean> = _navigateToCreateStory.asStateFlow()
+
     init {
         Log.d("DesiMaxDebug", "HomeViewModel initialized")
         clearSharedPreferences()
-        fetchDesiMessagesAndBadges()
+        viewModelScope.launch {
+            // Wait for auth state to be initialized
+            while (!commonViewModel.getAuthRepository().isLoggedIn()) {
+                Log.d("DesiMaxDebug", "Waiting for auth state to be initialized...")
+                delay(100L)
+            }
+
+            // Wait for the first emission from authStateFlow to get the correct firstName
+            val authState = commonViewModel.getAuthRepository().authStateFlow.first()
+            val firstName = authState.userName ?: "User"
+            Log.d("DesiMaxDebug", "Fetched initial authState: id=${authState.getId()}, userName=${authState.userName}, jwt=${authState.jwt}")
+            Log.d("DesiMaxDebug", "Setting initial firstName for HomeData: $firstName")
+
+            val vitals = fetchInitialData()
+            val age = vitals?.date_of_birth?.let {
+                Period.between(LocalDate.parse(it, DateTimeFormatter.ISO_LOCAL_DATE), LocalDate.now()).years
+            } ?: 30
+
+            // Initialize HomeData with the correct firstName
+            _homeData.value = HomeData(
+                firstName = firstName,
+                watchSteps = 0f,
+                manualSteps = 0f,
+                trackedSteps = 0f,
+                stepGoal = vitals?.stepGoal?.toFloat() ?: 10000f,
+                sleepHours = 0f,
+                caloriesBurned = 0f,
+                heartRate = 0f,
+                maxHeartRate = (220 - age).toFloat(),
+                hydration = 0f,
+                caloriesLogged = 0f,
+                weightLost = 0f,
+                bmr = commonViewModel.bmr.value.takeIf { it > 0 } ?: vitals?.calorieGoal?.toInt() ?: 2000,
+                stressScore = "Unknown",
+                challengeOrAnnouncement = "Weekly Step Challenge!",
+                streak = 0,
+                showStories = sharedPreferences.getBoolean("show_stories", true),
+                storiesOrLeaderboard = listOf("User: 10K steps"),
+                maxMessage = MaxMessage("", "", false),
+                isTracking = false,
+                dateRangeMode = "Day",
+                badges = emptyList(),
+                healthVitalsUpdated = vitals != null
+            )
+
+            // Continue to reactively update firstName if authState changes
+            commonViewModel.getAuthRepository().authStateFlow.collect { updatedAuthState ->
+                val updatedFirstName = updatedAuthState.userName ?: "User"
+                if (updatedFirstName != _homeData.value.firstName) {
+                    Log.d("DesiMaxDebug", "AuthState changed, updating firstName to: $updatedFirstName")
+                    _homeData.update { it.copy(firstName = updatedFirstName) }
+                }
+            }
+
+            fetchDesiMessagesAndBadges()
+            // Trigger initial refresh to fetch sleep data
+            refreshData()
+            // Ensure initializeWithContext is called after refreshData to use the latest sleep data
+            initializeWithContext()
+        }
     }
 
     private fun clearSharedPreferences() {
@@ -81,8 +131,28 @@ class HomeViewModel @Inject constructor(
         Log.d("DesiMaxDebug", "Cleared SharedPreferences for metrics")
     }
 
+    private suspend fun fetchInitialData(): StrapiApi.HealthVitalsEntry? {
+        return try {
+            val userId = commonViewModel.getAuthRepository().getAuthState().getId() ?: "1"
+            val token = "Bearer ${commonViewModel.getAuthRepository().getAuthState().jwt ?: return null}"
+            val response = commonViewModel.getStrapiRepository().getHealthVitals(userId, token)
+            if (response.isSuccessful) {
+                response.body()?.data?.firstOrNull().also {
+                    Log.d("DesiMaxDebug", "Fetched HealthVitals: $it")
+                }
+            } else {
+                Log.e("DesiMaxDebug", "HealthVitals fetch failed: ${response.code()}")
+                null
+            }
+        } catch (e: Exception) {
+            Log.e("DesiMaxDebug", "Error fetching HealthVitals: ${e.message}", e)
+            null
+        }
+    }
+
     fun initializeWithContext() {
         Log.d("DesiMaxDebug", "🚀 initializeWithContext triggered")
+        Log.d("DesiMaxDebug", "Current sleepHours before combine: ${_homeData.value.sleepHours}")
 
         viewModelScope.launch {
             sharedPreferences.edit().apply {
@@ -95,12 +165,11 @@ class HomeViewModel @Inject constructor(
 
             val healthFlow = combine(
                 commonViewModel.steps,
-                commonViewModel.sleepHours,
                 commonViewModel.hydration,
                 commonViewModel.heartRate,
                 commonViewModel.caloriesBurned
-            ) { steps, sleep, hydration, heartRate, calories ->
-                HealthMetrics(steps, sleep, hydration, heartRate, calories)
+            ) { steps, hydration, heartRate, calories ->
+                HealthMetrics(steps, 0f, hydration, heartRate, calories)
             }
 
             val stateFlow = combine(
@@ -113,19 +182,52 @@ class HomeViewModel @Inject constructor(
             }
 
             combine(healthFlow, stateFlow, _fetchedBadges) { health, state, badges ->
+                val hrv = try {
+                    healthConnectManager.readHRV(state.date)?.sdnn ?: 0f
+                } catch (e: Exception) {
+                    Log.w("DesiMaxDebug", "HRV not available: ${e.message}")
+                    0f
+                }
+                val stressScore = if (hrv == 0f) {
+                    val sleepScore = when (_homeData.value.sleepHours) {
+                        in 7.5f..Float.MAX_VALUE -> 0f
+                        in 6.0f..7.5f -> 50f
+                        else -> 100f
+                    }
+                    val activityScore = when {
+                        (health.steps + state.trackedSteps > 20000 || health.calories > 1000) -> 100f
+                        (health.steps + state.trackedSteps > 15000 || health.calories > 500) -> 50f
+                        else -> 0f
+                    }
+                    val stressValue = 0.5f * sleepScore + 0.5f * activityScore
+                    when {
+                        stressValue <= 33f -> "Low"
+                        stressValue <= 66f -> "Medium"
+                        else -> "High"
+                    }
+                } else {
+                    when {
+                        hrv >= 50 -> "Low"
+                        hrv >= 20 -> "Medium"
+                        else -> "High"
+                    }
+                }
                 val updated = _homeData.value.copy(
                     watchSteps = health.steps,
-                    sleepHours = health.sleep,
+                    sleepHours = _homeData.value.sleepHours, // Preserve sleep data from SleepViewModel
                     hydration = health.hydration,
                     heartRate = health.heartRate,
                     caloriesBurned = health.calories,
                     trackedSteps = state.trackedSteps,
                     bmr = state.bmr,
-                    isTracking = state.isTracking
+                    isTracking = state.isTracking,
+                    stressScore = stressScore
                 )
+                Log.d("DesiMaxDebug", "Updated _homeData in combine: sleepHours=${updated.sleepHours}")
                 updated.copy(badges = assignBadges(updated, badges))
-            }.collect { updatedHomeData ->
-                _homeData.value = updatedHomeData
+            }.collect { newData ->
+                Log.d("DesiMaxDebug", "Collecting new _homeData: sleepHours=${newData.sleepHours}")
+                _homeData.value = newData
             }
         }
     }
@@ -134,29 +236,27 @@ class HomeViewModel @Inject constructor(
         Log.d("DesiMaxDebug", "Refreshing home data")
         try {
             val date = LocalDate.now()
-            val steps = healthConnectManager.readSteps(date).toFloat()
-            val sleep = healthConnectManager.readSleepSessions(date).total.toHours().toFloat()
-            val hydrationRecords = healthConnectManager.readHydrationRecords(
-                date.atStartOfDay().toInstant(java.time.ZoneOffset.UTC),
-                date.atTime(23, 59, 59).toInstant(java.time.ZoneOffset.UTC)
-            )
-            val hydration = hydrationRecords.sumOf { record -> record.volume.inLiters }.toFloat()
-            val heartRate = healthConnectManager.readDailyHeartRate(date)?.toFloat() ?: 0f
-            val calories = healthConnectManager.readExerciseSessions(date).calories?.toFloat() ?: 0f
+            // Fetch sleep data from SleepViewModel
+            sleepViewModel.fetchSleepData(date)
+            val sleepDataUi = sleepViewModel.sleepData.value
+            val sleep = sleepDataUi?.actualSleepTime ?: 0f
+            Log.d("DesiMaxDebug", "Fetched sleep hours from SleepViewModel: $sleep")
 
+            // Use CommonViewModel to refresh other data (steps, hydration, etc.), but not sleep
+            val token = "Bearer ${commonViewModel.getAuthRepository().getAuthState().jwt ?: return}"
+            commonViewModel.syncHealthData(token)
+
+            // Update _homeData with the sleep data from SleepViewModel
             _homeData.update {
                 it.copy(
-                    watchSteps = steps,
-                    sleepHours = sleep,
-                    hydration = hydration,
-                    heartRate = heartRate,
-                    caloriesBurned = calories
+                    sleepHours = sleep
                 )
             }
+            Log.d("DesiMaxDebug", "Updated _homeData with sleepHours: $sleep")
 
-            val token = commonViewModel.getAuthRepository().getAuthState().jwt
+            // Fetch badges
             if (!token.isNullOrBlank()) {
-                val authToken = "Bearer $token"
+                val authToken = token
                 val badgesResponse = withTimeoutOrNull(10000L) {
                     withContext(Dispatchers.IO) {
                         commonViewModel.getStrapiRepository().getBadges(authToken)
@@ -178,10 +278,15 @@ class HomeViewModel @Inject constructor(
                         }
                     }
                     _fetchedBadges.value = mappedBadges
+                    Log.d("DesiMaxDebug", "Fetched badges: ${mappedBadges.size}")
+                } else {
+                    Log.e("DesiMaxDebug", "Failed to fetch badges: ${badgesResponse?.code()}")
                 }
+            } else {
+                Log.w("DesiMaxDebug", "No token available for fetching badges")
             }
 
-            Log.d("DesiMaxDebug", "Refresh complete: steps=$steps, sleep=$sleep, hydration=$hydration")
+            Log.d("DesiMaxDebug", "Refresh complete: sleep=$sleep")
         } catch (e: Exception) {
             Log.e("DesiMaxDebug", "Refresh failed: ${e.message}", e)
             commonViewModel.postUiMessage("Failed to refresh data: ${e.message}")
@@ -372,39 +477,57 @@ class HomeViewModel @Inject constructor(
 
     fun updateDate(newDate: LocalDate) {
         commonViewModel.updateDate(newDate)
+        sleepViewModel.fetchSleepData(newDate) // Refresh sleep data for the new date
+        viewModelScope.launch {
+            refreshData() // Re-run refreshData to update _homeData with the new sleep data
+        }
     }
 
     fun toggleStoriesOrLeaderboard() {
-        _homeData.update { it.copy(showStories = !it.showStories) }
+        val newShowStories = !_homeData.value.showStories
+        _homeData.update { it.copy(showStories = newShowStories) }
+        sharedPreferences.edit().putBoolean("show_stories", newShowStories).apply()
     }
 
     fun setDateRangeMode(mode: String) {
         _homeData.update { it.copy(dateRangeMode = mode) }
     }
+
+    // Method to trigger navigation to create a new story
+    fun onCreateStoryClicked() {
+        _navigateToCreateStory.value = true
+    }
+
+    // Method to reset navigation trigger after navigation is handled
+    fun onNavigationHandled() {
+        _navigateToCreateStory.value = false
+    }
 }
 
 data class HomeData(
-    val watchSteps: Float,
-    val manualSteps: Float,
-    val trackedSteps: Float,
-    val stepGoal: Float,
-    val sleepHours: Float,
-    val caloriesBurned: Float,
-    val heartRate: Float,
-    val maxHeartRate: Float,
-    val hydration: Float,
-    val caloriesLogged: Float,
-    val weightLost: Float,
-    val bmr: Int,
-    val stressScore: String,
-    val challengeOrAnnouncement: String,
-    val streak: Int,
-    val showStories: Boolean,
-    val storiesOrLeaderboard: List<String>,
-    val maxMessage: MaxMessage,
-    val isTracking: Boolean,
-    val dateRangeMode: String,
-    val badges: List<StrapiApi.Badge>
+    val firstName: String = "User",
+    val watchSteps: Float = 0f,
+    val manualSteps: Float = 0f,
+    val trackedSteps: Float = 0f,
+    val stepGoal: Float = 11000f,
+    val sleepHours: Float = 0f,
+    val caloriesBurned: Float = 0f,
+    val heartRate: Float = 0f,
+    val maxHeartRate: Float = 200f,
+    val hydration: Float = 0f,
+    val caloriesLogged: Float = 0f,
+    val weightLost: Float = 0f,
+    val bmr: Int = 2000,
+    val stressScore: String = "Unknown",
+    val challengeOrAnnouncement: String = "Weekly Step Challenge!",
+    val streak: Int = 0,
+    val showStories: Boolean = true,
+    val storiesOrLeaderboard: List<String> = listOf("User: 10K steps"),
+    val maxMessage: MaxMessage = MaxMessage("", "", false),
+    val isTracking: Boolean = false,
+    val dateRangeMode: String = "Day",
+    val badges: List<StrapiApi.Badge> = emptyList(),
+    val healthVitalsUpdated: Boolean = false
 )
 
 data class MaxMessage(val yesterday: String, val today: String, val hasPlayed: Boolean)

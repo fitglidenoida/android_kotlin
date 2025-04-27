@@ -8,6 +8,7 @@ import com.trailblazewellness.fitglide.data.api.StrapiRepository
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
 import com.trailblazewellness.fitglide.data.healthconnect.WorkoutData
 import com.trailblazewellness.fitglide.presentation.home.HomeViewModel
+import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,6 +23,7 @@ class WorkoutViewModel(
     private val strapiRepository: StrapiRepository,
     private val healthConnectManager: HealthConnectManager,
     private val homeViewModel: HomeViewModel,
+    private val commonViewModel: CommonViewModel,
     private val authToken: String,
     private val userId: String
 ) : ViewModel() {
@@ -33,9 +35,8 @@ class WorkoutViewModel(
             steps = 0f,
             schedule = emptyList(),
             streak = 0,
-            dailyChallenge = "Hit 3 workouts",
-            challengeProgress = 0,
-            buddyChallenges = emptyList(),
+            challenges = emptyList(),
+            insights = emptyList(),
             selectedDate = LocalDate.now(),
             selectedGoal = "Cardio"
         )
@@ -49,81 +50,17 @@ class WorkoutViewModel(
             if (!isInitialized) {
                 Log.d("WorkoutDebug", "Initializing WorkoutViewModel")
                 isInitialized = true
-                syncWearableWorkouts(LocalDate.now())
-                syncWearableWorkouts(LocalDate.of(2025, 4, 13))
                 fetchWorkoutData()
-            }
-        }
-    }
-
-    private suspend fun syncWearableWorkouts(date: LocalDate) {
-        Log.d("WorkoutDebug", "Syncing wearable workouts for date: $date")
-        try {
-            var session = healthConnectManager.readExerciseSessions(date)
-            if (date == LocalDate.of(2025, 4, 13)) {
-                // Mock only if no Strapi log exists
-                val dateStr = date.toString()
-                val logsResponse = strapiRepository.getWorkoutLogs(userId, dateStr, authToken)
-                if (logsResponse.isSuccessful && logsResponse.body()?.data?.isNotEmpty() == true) {
-                    Log.d("WorkoutDebug", "Skipping mock for $date; Strapi log exists")
-                    session = WorkoutData(
-                        distance = logsResponse.body()!!.data.first().distance?.toDouble()?.times(1609.34),
-                        duration = logsResponse.body()!!.data.first().totalTime?.toLong()?.let { Duration.ofMinutes(it) },
-                        calories = logsResponse.body()!!.data.first().calories?.toDouble(),
-                        heartRateAvg = logsResponse.body()!!.data.first().heartRateAverage,
-                        start = logsResponse.body()!!.data.first().startTime.let { LocalDateTime.parse(it, DateTimeFormatter.ISO_DATE_TIME) },
-                        end = logsResponse.body()!!.data.first().endTime.let { LocalDateTime.parse(it, DateTimeFormatter.ISO_DATE_TIME) },
-                        type = "Cycling"
-                    )
-                } else {
-                    session = WorkoutData(
-                        distance = 14.33 * 1609.34, // 14.33 miles to meters
-                        duration = Duration.ofMinutes(80),
-                        calories = 868.0,
-                        heartRateAvg = 80L,
-                        start = LocalDateTime.of(2025, 4, 13, 5, 0),
-                        end = LocalDateTime.of(2025, 4, 13, 6, 20),
-                        type = "Cycling"
-                    )
-                    Log.d("WorkoutDebug", "Mocked cycling session for $date")
+                // Start a background coroutine to periodically fetch steps
+                launch {
+                    while (true) {
+                        val steps = healthConnectManager.readSteps(_workoutData.value.selectedDate).toFloat()
+                        Log.d("WorkoutDebug", "Periodically fetched steps for ${_workoutData.value.selectedDate}: $steps")
+                        _workoutData.value = _workoutData.value.copy(steps = steps)
+                        delay(5000L) // Fetch every 5 seconds
+                    }
                 }
             }
-            Log.d("WorkoutDebug", "Health Connect session for $date: type=${session.type}, distance=${session.distance}, calories=${session.calories}, start=${session.start}, end=${session.end}")
-
-            if (session.type != "Unknown") {
-                val distanceMiles = session.distance?.let { (it / 1609.34).toFloat() } ?: 0f
-                val durationMinutes = session.duration?.toMinutes()?.toFloat() ?: 0f
-                val speedKmHr = if (durationMinutes > 0) ((distanceMiles * 1.60934) / (durationMinutes / 60.0)).toFloat() else 0f
-                Log.d("WorkoutDebug", "Converted: distance=$distanceMiles miles, speed=$speedKmHr km/hr")
-
-                val startTimeStr = session.start?.format(DateTimeFormatter.ISO_DATE_TIME) ?: "${date}T00:00:00.000Z"
-                val logRequest = StrapiApi.WorkoutLogRequest(
-                    logId = "wearable_${date}_${System.currentTimeMillis()}",
-                    workout = null,
-                    startTime = startTimeStr,
-                    endTime = session.end?.format(DateTimeFormatter.ISO_DATE_TIME) ?: "${date}T23:59:59.999Z",
-                    distance = distanceMiles,
-                    totalTime = durationMinutes,
-                    calories = session.calories?.toFloat() ?: 0f,
-                    heartRateAverage = session.heartRateAvg ?: 0L,
-                    heartRateMaximum = 0L,
-                    heartRateMinimum = 0L,
-                    route = emptyList(),
-                    completed = true,
-                    notes = "Auto-synced from wearable (${session.type})",
-                    usersPermissionsUser = StrapiApi.UserId(userId)
-                )
-                Log.d("WorkoutDebug", "Sending workout log to Strapi: $logRequest")
-                val response = strapiRepository.syncWorkoutLog(logRequest, authToken)
-                Log.d("WorkoutDebug", "Strapi sync response: success=${response.isSuccessful}, code=${response.code()}, body=${response.body()?.toString()}")
-                if (!response.isSuccessful) {
-                    Log.e("WorkoutDebug", "Strapi error: ${response.errorBody()?.string()}")
-                }
-            } else {
-                Log.w("WorkoutDebug", "No valid session for $date: type=${session.type}")
-            }
-        } catch (e: Exception) {
-            Log.e("WorkoutDebug", "Error syncing wearable workout for $date: ${e.message ?: "Unknown error"}", e)
         }
     }
 
@@ -135,6 +72,7 @@ class WorkoutViewModel(
             val steps = healthConnectManager.readSteps(_workoutData.value.selectedDate).toFloat()
             Log.d("WorkoutDebug", "Fetched steps for ${_workoutData.value.selectedDate}: $steps")
 
+            // Fetch workout plans from Strapi
             val plansResponse = strapiRepository.getWorkoutPlans(userId, authToken)
             val plans = if (plansResponse.isSuccessful) {
                 Log.d("WorkoutDebug", "Workout plans fetched: ${plansResponse.body()?.data?.size ?: 0} plans")
@@ -158,6 +96,7 @@ class WorkoutViewModel(
                 emptyList()
             }
 
+            // Fetch workout logs from Strapi
             val dateStr = _workoutData.value.selectedDate.toString()
             val logsResponse = strapiRepository.getWorkoutLogs(userId, dateStr, authToken)
             val logs = if (logsResponse.isSuccessful) {
@@ -169,7 +108,8 @@ class WorkoutViewModel(
                 emptyList()
             }
 
-            val session = healthConnectManager.readExerciseSessions(_workoutData.value.selectedDate)
+            // Fetch sessions from Health Connect
+            val sessions = healthConnectManager.readExerciseSessions(_workoutData.value.selectedDate)
             val schedule = (plans + logs.filter { it.workout == null && it.startTime.startsWith(dateStr) }.map { log ->
                 WorkoutSlot(
                     id = log.id,
@@ -186,9 +126,40 @@ class WorkoutViewModel(
                 )
             }).filter { it.type == _workoutData.value.selectedGoal || _workoutData.value.selectedGoal.isEmpty() }
 
-            val heartRate = logs.mapNotNull { it.heartRateAverage?.toFloat() }.average().toFloat().takeIf { it > 0 } ?: session.heartRateAvg?.toFloat() ?: 0f
-            val caloriesBurned = logs.sumOf { it.calories?.toDouble() ?: 0.0 }.toFloat().takeIf { it > 0 } ?: session.calories?.toFloat() ?: (if (_workoutData.value.selectedDate == LocalDate.of(2025, 4, 13)) 868f else 0f)
+            // Aggregate heart rate and calories from all sessions
+            val heartRate = logs.mapNotNull { it.heartRateAverage?.toFloat() }.average().toFloat().takeIf { it > 0 }
+                ?: sessions.mapNotNull { it.heartRateAvg?.toFloat() }.average().toFloat().takeIf { it > 0 } ?: 0f
+            val caloriesBurned = logs.sumOf { it.calories?.toDouble() ?: 0.0 }.toFloat().takeIf { it > 0 }
+                ?: sessions.sumOf { it.calories ?: 0.0 }.toFloat()
             val streak = calculateStreak(logs)
+
+            // Fetch challenges from CommonViewModel
+            val challenges = commonViewModel.challenges.value.map { challenge ->
+                Challenge(
+                    goal = challenge.type,
+                    progress = logs.count { it.completed && it.startTime.startsWith(dateStr) },
+                    target = challenge.goal
+                )
+            }
+
+            // Generate dynamic insights
+            val homeData = homeViewModel.homeData.value
+            val insights = mutableListOf<String>()
+            val targetHR = (homeData.maxHeartRate * 0.65).toInt()
+            if (heartRate < targetHR) {
+                insights.add("Push HR to $targetHR for max burn!")
+            }
+            if (steps < homeData.stepGoal) {
+                insights.add("Steps on track—aim for ${homeData.stepGoal.toInt()}!")
+            } else {
+                insights.add("Steps goal achieved—great job!")
+            }
+            if (caloriesBurned < 300) {
+                insights.add("Burn more calories—aim for at least 300 cal today!")
+            }
+            if (logs.count { it.completed && it.startTime.startsWith(dateStr) } < 1) {
+                insights.add("Consistency is key—try a workout today!")
+            }
 
             _workoutData.value = _workoutData.value.copy(
                 heartRate = heartRate,
@@ -196,7 +167,8 @@ class WorkoutViewModel(
                 steps = steps,
                 schedule = schedule,
                 streak = streak,
-                challengeProgress = logs.count { it.completed }
+                challenges = challenges,
+                insights = insights
             )
             Log.d("WorkoutDebug", "Updated workoutData: schedule.size=${schedule.size}, heartRate=$heartRate, calories=$caloriesBurned, steps=$steps")
         } catch (e: Exception) {
@@ -207,7 +179,6 @@ class WorkoutViewModel(
     fun setDate(date: LocalDate) {
         _workoutData.value = _workoutData.value.copy(selectedDate = date)
         viewModelScope.launch {
-            syncWearableWorkouts(date)
             fetchWorkoutData()
         }
     }
@@ -244,6 +215,7 @@ class WorkoutViewModel(
             Log.w("WorkoutDebug", "Invalid workoutIndex for sync: $workoutIndex")
             return
         }
+        val HEART_RATE_THRESHOLD = 85f
         val workout = schedule[workoutIndex]
         try {
             val logRequest = StrapiApi.WorkoutLogRequest(
@@ -294,9 +266,8 @@ data class WorkoutUiData(
     val steps: Float,
     val schedule: List<WorkoutSlot>,
     val streak: Int,
-    val dailyChallenge: String,
-    val challengeProgress: Int,
-    val buddyChallenges: List<BuddyChallenge>,
+    val challenges: List<Challenge>,
+    val insights: List<String>,
     val selectedDate: LocalDate,
     val selectedGoal: String
 )
@@ -315,9 +286,8 @@ data class WorkoutMove(
     val isCompleted: Boolean
 )
 
-data class BuddyChallenge(
-    val buddyName: String,
+data class Challenge(
     val goal: String,
-    val buddyProgress: Int,
-    val userProgress: Int
+    val progress: Int,
+    val target: Int
 )

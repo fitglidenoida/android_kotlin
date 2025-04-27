@@ -34,8 +34,9 @@ class MealsViewModel(
             schedule = emptyList(),
             streak = 0,
             questActive = false,
-            questGoal = "",
+            questGoal = "Protein",
             questProgress = 0f,
+            questTarget = 80f, // Default until calculated
             selectedDate = LocalDate.now(),
             mealType = "Veg",
             favoriteFood = "",
@@ -55,10 +56,10 @@ class MealsViewModel(
     private val componentsCache = mutableMapOf<String, StrapiApi.DietComponentEntry>()
     private val dailyLogIds = mutableMapOf<LocalDate, String?>()
 
-
     init {
         fetchMealsData(LocalDate.now())
         fetchAllDietComponents()
+        calculateStreak()
     }
 
     private fun parseMacro(value: String?): Float = value?.replace("g", "")?.toFloatOrNull() ?: 0f
@@ -106,6 +107,11 @@ class MealsViewModel(
                     }
                 }
 
+                var totalProteinGoal = 0f
+                var totalCarbsGoal = 0f
+                var totalFatGoal = 0f
+                var totalFiberGoal = 0f
+
                 if (activePlan != null && activePlan.meals?.isNotEmpty() == true) {
                     schedule = activePlan.meals.filter { it.mealDate == date.toString() }.map { meal ->
                         val displayTime = meal.mealTime?.let {
@@ -130,6 +136,18 @@ class MealsViewModel(
                             meal.totalCalories.toFloat(),
                             false
                         ))
+
+                        // Calculate macronutrient goals for the meal
+                        val mealProtein = components.sumOf { parseMacro(componentsCache[it.id]?.protein).toDouble() }.toFloat()
+                        val mealCarbs = components.sumOf { parseMacro(componentsCache[it.id]?.carbs).toDouble() }.toFloat()
+                        val mealFat = components.sumOf { parseMacro(componentsCache[it.id]?.fat).toDouble() }.toFloat()
+                        val mealFiber = components.sumOf { parseMacro(componentsCache[it.id]?.fiber).toDouble() }.toFloat()
+
+                        totalProteinGoal += mealProtein
+                        totalCarbsGoal += mealCarbs
+                        totalFatGoal += mealFat
+                        totalFiberGoal += mealFiber
+
                         val missed = LocalTime.parse(displayTime, DateTimeFormatter.ofPattern("HH:mm")).isBefore(LocalTime.now()) && components.any { !it.isConsumed }
                         MealSlot(
                             id = meal.documentId ?: "unknown_${System.currentTimeMillis()}",
@@ -137,10 +155,10 @@ class MealsViewModel(
                             time = displayTime,
                             items = components,
                             calories = components.filter { it.isConsumed }.sumOf { it.calories.toDouble() }.toFloat(),
-                            protein = components.sumOf { parseMacro(componentsCache[it.id]?.protein).toDouble() }.toFloat(),
-                            carbs = components.sumOf { parseMacro(componentsCache[it.id]?.carbs).toDouble() }.toFloat(),
-                            fat = components.sumOf { parseMacro(componentsCache[it.id]?.fat).toDouble() }.toFloat(),
-                            fiber = components.sumOf { parseMacro(componentsCache[it.id]?.fiber).toDouble() }.toFloat(),
+                            protein = mealProtein,
+                            carbs = mealCarbs,
+                            fat = mealFat,
+                            fiber = mealFiber,
                             date = date,
                             isMissed = missed,
                             targetCalories = meal.totalCalories.toFloat()
@@ -171,6 +189,18 @@ class MealsViewModel(
                                 meal.totalCalories.toFloat(),
                                 false
                             ))
+
+                            // Calculate macronutrient goals for the meal
+                            val mealProtein = components.sumOf { parseMacro(componentsCache[it.id]?.protein).toDouble() }.toFloat()
+                            val mealCarbs = components.sumOf { parseMacro(componentsCache[it.id]?.carbs).toDouble() }.toFloat()
+                            val mealFat = components.sumOf { parseMacro(componentsCache[it.id]?.fat).toDouble() }.toFloat()
+                            val mealFiber = components.sumOf { parseMacro(componentsCache[it.id]?.fiber).toDouble() }.toFloat()
+
+                            totalProteinGoal += mealProtein
+                            totalCarbsGoal += mealCarbs
+                            totalFatGoal += mealFat
+                            totalFiberGoal += mealFiber
+
                             val missed = LocalTime.parse(displayTime, DateTimeFormatter.ofPattern("HH:mm")).isBefore(LocalTime.now()) && components.any { !it.isConsumed }
                             MealSlot(
                                 id = meal.documentId ?: "unknown_${System.currentTimeMillis()}",
@@ -178,10 +208,10 @@ class MealsViewModel(
                                 time = displayTime,
                                 items = components,
                                 calories = components.filter { it.isConsumed }.sumOf { it.calories.toDouble() }.toFloat(),
-                                protein = components.sumOf { parseMacro(componentsCache[it.id]?.protein).toDouble() }.toFloat(),
-                                carbs = components.sumOf { parseMacro(componentsCache[it.id]?.carbs).toDouble() }.toFloat(),
-                                fat = components.sumOf { parseMacro(componentsCache[it.id]?.fat).toDouble() }.toFloat(),
-                                fiber = components.sumOf { parseMacro(componentsCache[it.id]?.fiber).toDouble() }.toFloat(),
+                                protein = mealProtein,
+                                carbs = mealCarbs,
+                                fat = mealFat,
+                                fiber = mealFiber,
                                 date = date,
                                 isMissed = missed,
                                 targetCalories = meal.totalCalories.toFloat()
@@ -192,7 +222,7 @@ class MealsViewModel(
                     if (dailyLogIds[date] == null) {
                         val dietLogRequest = StrapiApi.DietLogRequest(
                             date = date.toString(),
-                            usersPermissionsUser = StrapiApi.UserId("1"), // Updated field name
+                            usersPermissionsUser = StrapiApi.UserId("1"),
                             meals = schedule.map { meal ->
                                 StrapiApi.MealLogEntry(
                                     mealId = meal.id,
@@ -237,9 +267,16 @@ class MealsViewModel(
                     fat = fat,
                     fiber = fiber,
                     schedule = sortedMeals,
-                    streak = 3,
+                    questActive = totalProteinGoal > 0, // Quest is active if there are macronutrient goals
+                    questGoal = "Protein", // Default to protein; can be changed dynamically
+                    questProgress = protein,
+                    questTarget = totalProteinGoal,
                     selectedDate = date,
-                    hasDietPlan = activePlan != null
+                    hasDietPlan = activePlan != null,
+                    proteinGoal = totalProteinGoal,
+                    carbsGoal = totalCarbsGoal,
+                    fatGoal = totalFatGoal,
+                    fiberGoal = totalFiberGoal
                 )
             } catch (e: Exception) {
                 Log.e("MealsViewModel", "Error fetching meals data: ${e.message}", e)
@@ -281,6 +318,31 @@ class MealsViewModel(
         }
     }
 
+    private fun calculateStreak() {
+        viewModelScope.launch {
+            try {
+                val token = "Bearer ${authRepository.getAuthState().jwt ?: return@launch}"
+                val userId = authRepository.getAuthState().getId().toString()
+                var streak = 0
+                var currentDate = LocalDate.now()
+                while (true) {
+                    val dietLogResponse = strapiRepository.getDietLogs(userId, currentDate, token)
+                    val dietLogs = dietLogResponse.body()?.data ?: emptyList()
+                    if (dietLogs.isEmpty()) break
+                    val loggedMeals = dietLogs.any { log -> log.meals?.any { meal -> meal["components"]?.let { comps -> (comps as List<*>).any { (it as Map<*, *>)["consumed"] == true } } == true } == true }
+                    if (!loggedMeals) break
+                    streak++
+                    currentDate = currentDate.minusDays(1)
+                }
+                _mealsData.value = _mealsData.value.copy(streak = streak)
+                Log.d("MealsViewModel", "Calculated streak: $streak days")
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error calculating streak: ${e.message}", e)
+                _mealsData.value = _mealsData.value.copy(streak = 0)
+            }
+        }
+    }
+
     fun updateCurrentMeal(schedule: List<MealSlot>) {
         val currentTime = LocalTime.now()
         val firstUnconsumed = schedule.firstOrNull { meal -> meal.items.any { !it.isConsumed } }
@@ -317,7 +379,8 @@ class MealsViewModel(
         lunchFav: String,
         dinnerFav: String,
         snackFav: String,
-        mealCount: Int
+        mealCount: Int,
+        customFavs: List<String> = emptyList()
     ) {
         viewModelScope.launch {
             try {
@@ -356,14 +419,41 @@ class MealsViewModel(
                 val meals = mutableListOf<MealSlot>()
                 val mealIds = mutableListOf<String>()
 
-                val mealSlots = when (mealCount) {
-                    3 -> listOf(
-                        Triple("Breakfast", breakfastFav, "08:00:00.000"),
-                        Triple("Lunch", lunchFav, "13:00:00.000"),
-                        Triple("Dinner", dinnerFav, "19:00:00.000")
-                    )
-                    else -> return@launch
+                val mealSlots = mutableListOf<Triple<String, String, String>>()
+                when (mealCount) {
+                    3 -> {
+                        mealSlots.addAll(
+                            listOf(
+                                Triple("Breakfast", breakfastFav, "08:00:00.000"),
+                                Triple("Lunch", lunchFav, "13:00:00.000"),
+                                Triple("Dinner", dinnerFav, "19:00:00.000")
+                            )
+                        )
+                    }
+                    4 -> {
+                        mealSlots.addAll(
+                            listOf(
+                                Triple("Breakfast", breakfastFav, "08:00:00.000"),
+                                Triple("Lunch", lunchFav, "13:00:00.000"),
+                                Triple("Snack", snackFav, "16:00:00.000"),
+                                Triple("Dinner", dinnerFav, "19:00:00.000")
+                            )
+                        )
+                    }
+                    else -> {
+                        mealSlots.add(Triple("Breakfast", breakfastFav, "08:00:00.000"))
+                        mealSlots.add(Triple("Lunch", lunchFav, "13:00:00.000"))
+                        mealSlots.add(Triple("Dinner", dinnerFav, "19:00:00.000"))
+                        customFavs.forEachIndexed { index, fav ->
+                            mealSlots.add(Triple("Meal ${index + 4}", fav, "${10 + index * 2}:00:00.000"))
+                        }
+                    }
                 }
+
+                var totalProteinGoal = 0f
+                var totalCarbsGoal = 0f
+                var totalFatGoal = 0f
+                var totalFiberGoal = 0f
 
                 mealSlots.forEach { (type, fav, time) ->
                     val favComponent = components.firstOrNull { it.name == fav }
@@ -388,6 +478,17 @@ class MealsViewModel(
                         mealIds.add(mealId)
                         val displayTime = LocalTime.parse(time, DateTimeFormatter.ofPattern("HH:mm:ss.SSS")).format(DateTimeFormatter.ofPattern("HH:mm"))
                         val missed = LocalTime.parse(displayTime, DateTimeFormatter.ofPattern("HH:mm")).isBefore(LocalTime.now())
+
+                        val mealProtein = (parseMacro(favComponent?.protein) + parseMacro(filler?.protein) * scale)
+                        val mealCarbs = (parseMacro(favComponent?.carbs) + parseMacro(filler?.carbs) * scale)
+                        val mealFat = (parseMacro(favComponent?.fat) + parseMacro(filler?.fat) * scale)
+                        val mealFiber = (parseMacro(favComponent?.fiber) + parseMacro(filler?.fiber) * scale)
+
+                        totalProteinGoal += mealProtein
+                        totalCarbsGoal += mealCarbs
+                        totalFatGoal += mealFat
+                        totalFiberGoal += mealFiber
+
                         meals.add(
                             MealSlot(
                                 id = mealId,
@@ -398,10 +499,10 @@ class MealsViewModel(
                                     MealItem(filler?.documentId ?: "extra", filler?.name ?: "Extra", fillerCalories * scale, fillerCalories * scale, false)
                                 ),
                                 calories = 0f,
-                                protein = parseMacro(favComponent?.protein) + parseMacro(filler?.protein) * scale,
-                                carbs = parseMacro(favComponent?.carbs) + parseMacro(filler?.carbs) * scale,
-                                fat = parseMacro(favComponent?.fat) + parseMacro(filler?.fat) * scale,
-                                fiber = parseMacro(favComponent?.protein) + parseMacro(filler?.fiber) * scale,
+                                protein = mealProtein,
+                                carbs = mealCarbs,
+                                fat = mealFat,
+                                fiber = mealFiber,
                                 date = _mealsData.value.selectedDate,
                                 isMissed = missed,
                                 targetCalories = perMealCalories
@@ -413,7 +514,7 @@ class MealsViewModel(
                 val sortedMeals = meals.sortedBy { LocalTime.parse(it.time, DateTimeFormatter.ofPattern("HH:mm")) }
                 val dietLogRequest = StrapiApi.DietLogRequest(
                     date = _mealsData.value.selectedDate.toString(),
-                    usersPermissionsUser = StrapiApi.UserId(userId), // Updated field name
+                    usersPermissionsUser = StrapiApi.UserId(userId),
                     meals = sortedMeals.map { meal ->
                         StrapiApi.MealLogEntry(
                             mealId = meal.id,
@@ -430,7 +531,15 @@ class MealsViewModel(
                 updateCurrentMeal(sortedMeals)
                 _mealsData.value = _mealsData.value.copy(
                     schedule = sortedMeals,
-                    hasDietPlan = true
+                    hasDietPlan = true,
+                    questActive = totalProteinGoal > 0,
+                    questGoal = "Protein",
+                    questProgress = _mealsData.value.protein,
+                    questTarget = totalProteinGoal,
+                    proteinGoal = totalProteinGoal,
+                    carbsGoal = totalCarbsGoal,
+                    fatGoal = totalFatGoal,
+                    fiberGoal = totalFiberGoal
                 )
             } catch (e: Exception) {
                 Log.e("MealsViewModel", "Error creating diet plan: ${e.message}", e)
@@ -476,7 +585,20 @@ class MealsViewModel(
             )
             _mealsData.value = _mealsData.value.copy(
                 schedule = schedule,
-                caloriesLogged = schedule.sumOf { it.items.filter { it.isConsumed }.sumOf { it.calories.toDouble() } }.toFloat()
+                caloriesLogged = schedule.sumOf { it.items.filter { it.isConsumed }.sumOf { it.calories.toDouble() } }.toFloat(),
+                protein = schedule.sumOf { slot ->
+                    slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.protein).toDouble() }
+                }.toFloat(),
+                carbs = schedule.sumOf { slot ->
+                    slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.carbs).toDouble() }
+                }.toFloat(),
+                fat = schedule.sumOf { slot ->
+                    slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.fat).toDouble() }
+                }.toFloat(),
+                fiber = schedule.sumOf { slot ->
+                    slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.fiber).toDouble() }
+                }.toFloat(),
+                questProgress = _mealsData.value.protein // Update quest progress based on protein for now
             )
             Log.d("MealsViewModel", "Replaced component at mealIndex=$mealIndex, itemIndex=$itemIndex with $newComponentId, scaled to $scale")
 
@@ -575,7 +697,8 @@ class MealsViewModel(
             protein = protein,
             carbs = carbs,
             fat = fat,
-            fiber = fiber
+            fiber = fiber,
+            questProgress = protein // Update quest progress based on protein for now
         )
         updateDailyLog()
         updateCurrentMeal(updatedSchedule)
@@ -589,7 +712,7 @@ class MealsViewModel(
                 val date = _mealsData.value.selectedDate
                 val schedule = _mealsData.value.schedule
 
-                val dietLogUpdateRequest = StrapiApi.DietLogUpdateRequest( // Changed to UpdateRequest
+                val dietLogUpdateRequest = StrapiApi.DietLogUpdateRequest(
                     date = date.toString(),
                     meals = schedule.map { meal ->
                         StrapiApi.MealLogEntry(
@@ -601,12 +724,12 @@ class MealsViewModel(
 
                 val logId = dailyLogIds[date]
                 if (logId != null) {
-                    val putResponse = strapiRepository.putDietLog(logId, dietLogUpdateRequest, token) // Fixed type
+                    val putResponse = strapiRepository.putDietLog(logId, dietLogUpdateRequest, token)
                     if (putResponse.isSuccessful) {
                         Log.d("MealsViewModel", "Daily diet log updated for $date with PUT (logId: $logId)")
                     } else {
                         Log.e("MealsViewModel", "Failed to update diet log with PUT: ${putResponse.code()} - ${putResponse.errorBody()?.string()}")
-                        val dietLogRequest = StrapiApi.DietLogRequest( // Fallback still uses full request
+                        val dietLogRequest = StrapiApi.DietLogRequest(
                             date = date.toString(),
                             usersPermissionsUser = StrapiApi.UserId(userId),
                             meals = schedule.map { meal ->
@@ -660,7 +783,7 @@ class MealsViewModel(
                 val newSchedule = currentSchedule + MealSlot(
                     id = "custom_${System.currentTimeMillis()}",
                     type = "Custom",
-                    time = "TBD",
+                    time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")),
                     items = listOf(MealItem("custom_${System.currentTimeMillis()}", food, 500f, 500f, false)),
                     calories = 0f,
                     protein = 0f,
@@ -721,8 +844,117 @@ class MealsViewModel(
     }
 
     fun logRecipe(recipe: String) {
-        Log.d("MealsViewModel", "Logged recipe: $recipe")
-        // TODO: Implement actual logging to Strapi
+        viewModelScope.launch {
+            try {
+                val token = "Bearer ${authRepository.getAuthState().jwt ?: return@launch}"
+                val userId = authRepository.getAuthState().getId().toString()
+                val recipeName = recipe.split(" - ")[0]
+                val component = _searchComponents.value.firstOrNull { it.name == recipeName }
+                if (component != null) {
+                    val currentSchedule = _mealsData.value.schedule
+                    val newSchedule = currentSchedule + MealSlot(
+                        id = "recipe_${System.currentTimeMillis()}",
+                        type = "Recipe",
+                        time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")),
+                        items = listOf(
+                            MealItem(
+                                id = component.documentId,
+                                name = component.name ?: "Unknown",
+                                servingSize = component.calories?.toFloat() ?: 0f,
+                                calories = component.calories?.toFloat() ?: 0f,
+                                isConsumed = true
+                            )
+                        ),
+                        calories = component.calories?.toFloat() ?: 0f,
+                        protein = parseMacro(component.protein),
+                        carbs = parseMacro(component.carbs),
+                        fat = parseMacro(component.fat),
+                        fiber = parseMacro(component.fiber),
+                        date = _mealsData.value.selectedDate,
+                        isMissed = false,
+                        targetCalories = component.calories?.toFloat() ?: 0f
+                    )
+                    _mealsData.value = _mealsData.value.copy(
+                        schedule = newSchedule,
+                        caloriesLogged = newSchedule.sumOf { it.items.filter { it.isConsumed }.sumOf { it.calories.toDouble() } }.toFloat(),
+                        protein = newSchedule.sumOf { slot ->
+                            slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.protein).toDouble() }
+                        }.toFloat(),
+                        carbs = newSchedule.sumOf { slot ->
+                            slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.carbs).toDouble() }
+                        }.toFloat(),
+                        fat = newSchedule.sumOf { slot ->
+                            slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.fat).toDouble() }
+                        }.toFloat(),
+                        fiber = newSchedule.sumOf { slot ->
+                            slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.fiber).toDouble() }
+                        }.toFloat(),
+                        questProgress = _mealsData.value.protein
+                    )
+                    updateDailyLog()
+                    updateCurrentMeal(newSchedule)
+                    Log.d("MealsViewModel", "Logged recipe: $recipe")
+                }
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error logging recipe: ${e.message}", e)
+            }
+        }
+    }
+
+    fun logPhotoMeal(mealName: String, calories: Float, protein: Float, carbs: Float, fat: Float, fiber: Float) {
+        viewModelScope.launch {
+            try {
+                val currentSchedule = _mealsData.value.schedule
+                val newSchedule = currentSchedule + MealSlot(
+                    id = "photo_${System.currentTimeMillis()}",
+                    type = "Photo Meal",
+                    time = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm")),
+                    items = listOf(
+                        MealItem(
+                            id = "photo_${System.currentTimeMillis()}",
+                            name = mealName,
+                            servingSize = calories,
+                            calories = calories,
+                            isConsumed = true
+                        )
+                    ),
+                    calories = calories,
+                    protein = protein,
+                    carbs = carbs,
+                    fat = fat,
+                    fiber = fiber,
+                    date = _mealsData.value.selectedDate,
+                    isMissed = false,
+                    targetCalories = calories
+                )
+                _mealsData.value = _mealsData.value.copy(
+                    schedule = newSchedule,
+                    caloriesLogged = newSchedule.sumOf { it.items.filter { it.isConsumed }.sumOf { it.calories.toDouble() } }.toFloat(),
+                    protein = newSchedule.sumOf { slot ->
+                        slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.protein).toDouble() }
+                    }.toFloat() + protein,
+                    carbs = newSchedule.sumOf { slot ->
+                        slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.carbs).toDouble() }
+                    }.toFloat() + carbs,
+                    fat = newSchedule.sumOf { slot ->
+                        slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.fat).toDouble() }
+                    }.toFloat() + fat,
+                    fiber = newSchedule.sumOf { slot ->
+                        slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.fiber).toDouble() }
+                    }.toFloat() + fiber,
+                    questProgress = _mealsData.value.protein + protein
+                )
+                updateDailyLog()
+                updateCurrentMeal(newSchedule)
+                Log.d("MealsViewModel", "Logged photo meal: $mealName, $calories Kcal")
+            } catch (e: Exception) {
+                Log.e("MealsViewModel", "Error logging photo meal: ${e.message}", e)
+            }
+        }
+    }
+
+    fun hasDietPlanForDate(date: LocalDate): Boolean {
+        return _mealsData.value.hasDietPlan && _mealsData.value.schedule.any { it.date == date }
     }
 }
 
@@ -739,13 +971,18 @@ data class MealsData(
     val questActive: Boolean,
     val questGoal: String,
     val questProgress: Float,
+    val questTarget: Float,
     val selectedDate: LocalDate,
     val mealType: String,
     val favoriteFood: String,
     val customMealRequested: Boolean,
     val customMealMessage: String,
     val hasDietPlan: Boolean,
-    val recipes: List<String> = emptyList()
+    val recipes: List<String> = emptyList(),
+    val proteinGoal: Float = 0f,
+    val carbsGoal: Float = 0f,
+    val fatGoal: Float = 0f,
+    val fiberGoal: Float = 0f
 )
 
 data class MealSlot(

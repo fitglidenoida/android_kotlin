@@ -80,7 +80,7 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.coil.compose)
     implementation(libs.androidx.compose.bom)
-
+    implementation (libs.accompanist.swiperefresh)
 
 
     // Explicitly use latest annotations

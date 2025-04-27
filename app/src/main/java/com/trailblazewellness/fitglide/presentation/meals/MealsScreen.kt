@@ -1,7 +1,10 @@
 package com.trailblazewellness.fitglide.presentation.meals
 
 import android.annotation.SuppressLint
+import android.graphics.Bitmap
 import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -14,7 +17,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -29,10 +31,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -44,6 +45,8 @@ import androidx.navigation.NavController
 import com.trailblazewellness.fitglide.FitGlideTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.drawscope.Stroke
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,11 +58,56 @@ fun MealsScreen(
     val mealsData by viewModel.mealsData.collectAsState()
     val favoriteFoods by viewModel.favoriteFoods.collectAsState()
     var showDetails by remember { mutableStateOf(false) }
+    var showWeeklyInsights by remember { mutableStateOf(false) }
+    var showPhotoConfirmation by remember { mutableStateOf(false) }
+    var photoMealData by remember { mutableStateOf<PhotoMealData?>(null) }
+    var isProcessingPhoto by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf(mealsData.selectedDate) }
-    var showMealPicker by remember { mutableStateOf(!mealsData.hasDietPlan) }
+    var showMealPicker by remember { mutableStateOf(false) } // Initially false, controlled by LaunchedEffect
     val scrollState = rememberScrollState()
     val mealTypes = listOf("Veg", "Non-Veg", "Mixed")
     val allMealsDone = mealsData.schedule.all { it.items.all { item -> item.isConsumed } }
+
+    // Automatically open MealPickerDialog if no diet plan is set
+    LaunchedEffect(mealsData.hasDietPlan) {
+        if (!mealsData.hasDietPlan) {
+            showMealPicker = true
+        }
+    }
+
+    // Camera launcher for taking a photo
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicturePreview()
+    ) { bitmap ->
+        if (bitmap != null) {
+            Log.d("MealsScreen", "Photo captured successfully. Bitmap: $bitmap")
+            isProcessingPhoto = true
+            // Simulate food recognition and nutritional data retrieval
+            // In a real app, this would involve API calls to Clarifai for food recognition and Edamam for nutritional data
+            try {
+                // Placeholder: Simulate API response
+                // Replace with actual API calls to Clarifai and Edamam
+                val foodName = "Pizza" // Simulated food recognition result
+                val calories = 800f // Simulated nutritional data
+                val protein = 30f
+                val carbs = 100f
+                val fat = 35f
+                val fiber = 5f
+
+                photoMealData = PhotoMealData(foodName, calories, protein, carbs, fat, fiber)
+                showPhotoConfirmation = true
+            } catch (e: Exception) {
+                Log.e("MealsScreen", "Error processing photo: ${e.message}", e)
+                // Show error message to user
+                photoMealData = PhotoMealData("Unknown Food", 0f, 0f, 0f, 0f, 0f)
+                showPhotoConfirmation = true
+            } finally {
+                isProcessingPhoto = false
+            }
+        } else {
+            Log.e("MealsScreen", "Failed to capture photo")
+        }
+    }
 
     LaunchedEffect(selectedDate) {
         viewModel.setDate(selectedDate)
@@ -86,7 +134,7 @@ fun MealsScreen(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF212121)
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -105,7 +153,7 @@ fun MealsScreen(
                         Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Day")
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
                 CalorieArc(
                     bmr = mealsData.bmr,
@@ -207,7 +255,53 @@ fun MealsScreen(
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF212121)
                 )
-                QuestCard(mealsData.questGoal, mealsData.questProgress, 100f)
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(
+                        listOf(
+                            Triple("Protein", mealsData.protein, mealsData.proteinGoal),
+                            Triple("Carbs", mealsData.carbs, mealsData.carbsGoal),
+                            Triple("Fat", mealsData.fat, mealsData.fatGoal),
+                            Triple("Fiber", mealsData.fiber, mealsData.fiberGoal)
+                        )
+                    ) { (macro, progress, max) ->
+                        QuestCard(
+                            macro = macro,
+                            progress = progress,
+                            max = max
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Insights",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF212121)
+                )
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color(0xFFE8F5E9),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp)
+                        .clickable { showWeeklyInsights = true }
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .padding(16.dp)
+                            .fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "View your weekly meal insights",
+                            fontSize = 14.sp,
+                            color = Color(0xFF424242)
+                        )
+                    }
+                }
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
@@ -221,7 +315,7 @@ fun MealsScreen(
             }
 
             FloatingActionButton(
-                onClick = { /* TODO: Open camera, process photo, log to active meal */ },
+                onClick = { cameraLauncher.launch(null) },
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(top = 48.dp, start = 16.dp),
@@ -242,6 +336,22 @@ fun MealsScreen(
                 Icon(Icons.Default.Restaurant, contentDescription = "Pick Meal", tint = Color.White)
             }
 
+            FloatingActionButton(
+                onClick = { showMealPicker = true },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp),
+                containerColor = Color(0xFF4CAF50),
+                shape = CircleShape
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Add,
+                    contentDescription = "Create Diet Plan",
+                    tint = Color.White,
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+
             if (showDetails) {
                 MealsDetailsOverlay(
                     mealsData = mealsData,
@@ -255,6 +365,42 @@ fun MealsScreen(
                     mealTypes = mealTypes,
                     favoriteFoods = favoriteFoods,
                     onDismiss = { showMealPicker = false }
+                )
+            }
+
+            if (showWeeklyInsights) {
+                WeeklyInsightsOverlay(
+                    mealsData = mealsData,
+                    onDismiss = { showWeeklyInsights = false }
+                )
+            }
+
+            if (isProcessingPhoto) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.5f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        color = Color.White,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+            }
+
+            if (showPhotoConfirmation && photoMealData != null) {
+                PhotoMealConfirmationDialog(
+                    photoMealData = photoMealData!!,
+                    onConfirm = { mealName, calories, protein, carbs, fat, fiber ->
+                        viewModel.logPhotoMeal(mealName, calories, protein, carbs, fat, fiber)
+                        showPhotoConfirmation = false
+                        photoMealData = null
+                    },
+                    onDismiss = {
+                        showPhotoConfirmation = false
+                        photoMealData = null
+                    }
                 )
             }
         }
@@ -351,10 +497,12 @@ fun MealPickerDialog(
                             Icon(
                                 Icons.Default.Search,
                                 contentDescription = "Search",
-                                modifier = Modifier.clickable {
-                                    breakfastExpanded = true
-                                    focusRequester.requestFocus()
-                                }
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp)
+                                    .clickable {
+                                        breakfastExpanded = true
+                                        focusRequester.requestFocus()
+                                    }
                             )
                         }
                     )
@@ -413,10 +561,12 @@ fun MealPickerDialog(
                             Icon(
                                 Icons.Default.Search,
                                 contentDescription = "Search",
-                                modifier = Modifier.clickable {
-                                    lunchExpanded = true
-                                    focusRequester.requestFocus()
-                                }
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp)
+                                    .clickable {
+                                        lunchExpanded = true
+                                        focusRequester.requestFocus()
+                                    }
                             )
                         }
                     )
@@ -475,10 +625,12 @@ fun MealPickerDialog(
                             Icon(
                                 Icons.Default.Search,
                                 contentDescription = "Search",
-                                modifier = Modifier.clickable {
-                                    dinnerExpanded = true
-                                    focusRequester.requestFocus()
-                                }
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp)
+                                    .clickable {
+                                        dinnerExpanded = true
+                                        focusRequester.requestFocus()
+                                    }
                             )
                         }
                     )
@@ -537,10 +689,12 @@ fun MealPickerDialog(
                             Icon(
                                 Icons.Default.Search,
                                 contentDescription = "Search",
-                                modifier = Modifier.clickable {
-                                    snackExpanded = true
-                                    focusRequester.requestFocus()
-                                }
+                                modifier = Modifier
+                                    .padding(horizontal = 8.dp)
+                                    .clickable {
+                                        snackExpanded = true
+                                        focusRequester.requestFocus()
+                                    }
                             )
                         }
                     )
@@ -575,7 +729,7 @@ fun MealPickerDialog(
                 }
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Text("Number of Meals (Suggested: 3-5)", fontSize = 14.sp, color = Color(0xFF212121))
+                Text("Number of Meals (Suggested: 3-6)", fontSize = 14.sp, color = Color(0xFF212121))
                 val mealCounts = (3..6).toList()
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(mealCounts) { count ->
@@ -612,6 +766,11 @@ fun MealPickerDialog(
 
 @Composable
 fun CalorieArc(bmr: Float, caloriesLogged: Float, onClick: () -> Unit) {
+    // Convert dp to px in a Composable context
+    val density = LocalDensity.current
+    val strokeWidthPx = with(density) { 10.dp.toPx() }
+    val arcOffsetPx = with(density) { 10.dp.toPx() }
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
@@ -620,7 +779,7 @@ fun CalorieArc(bmr: Float, caloriesLogged: Float, onClick: () -> Unit) {
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.size(160.dp)) {
-                val radius = size.width / 2 - 10.dp.toPx()
+                val radius = size.width / 2 - arcOffsetPx
                 drawArc(
                     color = Color(0xFF4CAF50),
                     startAngle = -90f,
@@ -628,7 +787,7 @@ fun CalorieArc(bmr: Float, caloriesLogged: Float, onClick: () -> Unit) {
                     useCenter = false,
                     topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                     size = Size(radius * 2, radius * 2),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 10.dp.toPx(), cap = StrokeCap.Round)
+                    style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                 )
             }
             Text(
@@ -657,21 +816,26 @@ fun MacroArcs(protein: Float, carbs: Float, fat: Float, fiber: Float) {
 
 @Composable
 fun MacroArc(label: String, value: Float, max: Float, color: Color) {
+    // Convert dp to px in a Composable context
+    val density = LocalDensity.current
+    val strokeWidthPx = with(density) { 5.dp.toPx() }
+    val arcOffsetPx = with(density) { 5.dp.toPx() }
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier.size(80.dp),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.size(70.dp)) {
-                val radius = size.width / 2 - 5.dp.toPx()
+                val radius = size.width / 2 - arcOffsetPx
                 drawArc(
                     color = color,
                     startAngle = -90f,
-                    sweepAngle = 360f * (value / max),
+                    sweepAngle = 360f * (value / max).coerceAtMost(1f),
                     useCenter = false,
                     topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                     size = Size(radius * 2, radius * 2),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round)
+                    style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                 )
             }
             Text(
@@ -900,9 +1064,11 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
                                         Icon(
                                             Icons.Default.Search,
                                             contentDescription = "Search",
-                                            modifier = Modifier.clickable {
-                                                focusRequester.requestFocus()
-                                            }
+                                            modifier = Modifier
+                                                .padding(horizontal = 8.dp)
+                                                .clickable {
+                                                    focusRequester.requestFocus()
+                                                }
                                         )
                                     }
                                 )
@@ -943,7 +1109,7 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
 }
 
 @Composable
-fun QuestCard(goal: String, progress: Float, max: Float) {
+fun QuestCard(macro: String, progress: Float, max: Float) {
     Surface(
         shape = RoundedCornerShape(8.dp),
         color = Color(0xFFFFF3E0),
@@ -955,9 +1121,9 @@ fun QuestCard(goal: String, progress: Float, max: Float) {
             modifier = Modifier.padding(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(goal, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121))
+            Text("$macro Goal", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121))
             LinearProgressIndicator(
-                progress = { progress / max },
+                progress = { if (max > 0) (progress / max).coerceAtMost(1f) else 0f },
                 modifier = Modifier.fillMaxWidth(),
                 color = Color(0xFF4CAF50),
                 trackColor = Color(0xFFEEEEEE)
@@ -1013,21 +1179,319 @@ fun MealsDetailsOverlay(mealsData: MealsData, onDismiss: () -> Unit) {
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(16.dp)
-                .width(300.dp)
+                .width(350.dp)
         ) {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Meal Details", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    text = "Meal Details",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF212121)
+                )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("BMR: ${mealsData.bmr.toInt()} Kcal", fontSize = 16.sp)
-                Text("Logged: ${mealsData.caloriesLogged.toInt()} Kcal", fontSize = 16.sp)
-                Text("Protein: ${mealsData.protein.toInt()}g", fontSize = 16.sp)
-                Text("Carbs: ${mealsData.carbs.toInt()}g", fontSize = 16.sp)
-                Text("Fat: ${mealsData.fat.toInt()}g", fontSize = 16.sp)
-                Text("Fiber: ${mealsData.fiber.toInt()}g", fontSize = 16.sp)
+                Text(
+                    text = "BMR: ${mealsData.bmr.toInt()} Kcal",
+                    fontSize = 16.sp,
+                    color = Color(0xFF424242)
+                )
+                Text(
+                    text = "Logged: ${mealsData.caloriesLogged.toInt()} Kcal",
+                    fontSize = 16.sp,
+                    color = Color(0xFF424242)
+                )
+                Text(
+                    text = "Protein: ${mealsData.protein.toInt()}g",
+                    fontSize = 16.sp,
+                    color = Color(0xFF424242)
+                )
+                Text(
+                    text = "Carbs: ${mealsData.carbs.toInt()}g",
+                    fontSize = 16.sp,
+                    color = Color(0xFF424242)
+                )
+                Text(
+                    text = "Fat: ${mealsData.fat.toInt()}g",
+                    fontSize = 16.sp,
+                    color = Color(0xFF424242)
+                )
+                Text(
+                    text = "Fiber: ${mealsData.fiber.toInt()}g",
+                    fontSize = 16.sp,
+                    color = Color(0xFF424242)
+                )
             }
         }
     }
+}
+
+@Composable
+fun WeeklyInsightsOverlay(mealsData: MealsData, onDismiss: () -> Unit) {
+    // Calculate weekly data
+    val weeklyData = calculateWeeklyData(mealsData)
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black.copy(alpha = 0.7f))
+            .clickable(onClick = onDismiss)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color.White,
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(16.dp)
+                .width(350.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .padding(20.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Weekly Meal Insights",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF212121)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Numerical Summaries
+                Text(
+                    text = "Average Daily Intake:",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF212121)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Calories: ${weeklyData.averageCalories.toInt()} kcal",
+                    fontSize = 14.sp,
+                    color = Color(0xFF424242)
+                )
+                Text(
+                    text = "Protein: ${weeklyData.averageProtein.toInt()}g",
+                    fontSize = 14.sp,
+                    color = Color(0xFF424242)
+                )
+                Text(
+                    text = "Carbs: ${weeklyData.averageCarbs.toInt()}g",
+                    fontSize = 14.sp,
+                    color = Color(0xFF424242)
+                )
+                Text(
+                    text = "Fat: ${weeklyData.averageFat.toInt()}g",
+                    fontSize = 14.sp,
+                    color = Color(0xFF424242)
+                )
+                Text(
+                    text = "Fiber: ${weeklyData.averageFiber.toInt()}g",
+                    fontSize = 14.sp,
+                    color = Color(0xFF424242)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Placeholder for Graphs
+                Text(
+                    text = "Graphs: Coming Soon!",
+                    fontSize = 14.sp,
+                    color = Color(0xFF757575),
+                    modifier = Modifier.padding(8.dp)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Insights
+                Text(
+                    text = "Insights:",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF212121)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                if (weeklyData.averageProtein < mealsData.proteinGoal * 0.8) {
+                    Text(
+                        text = "You're low on protein this week (${weeklyData.averageProtein.toInt()}g vs goal ${mealsData.proteinGoal.toInt()}g). Consider adding more protein-rich foods like chicken or lentils.",
+                        fontSize = 14.sp,
+                        color = Color(0xFF424242)
+                    )
+                } else {
+                    Text(
+                        text = "Great job! You're meeting your protein goal this week.",
+                        fontSize = 14.sp,
+                        color = Color(0xFF424242)
+                    )
+                }
+                if (weeklyData.averageCalories > mealsData.bmr * 1.2) {
+                    Text(
+                        text = "Your calorie intake (${weeklyData.averageCalories.toInt()} kcal) is higher than your BMR (${mealsData.bmr.toInt()} kcal). If weight loss is your goal, consider reducing portion sizes.",
+                        fontSize = 14.sp,
+                        color = Color(0xFF424242)
+                    )
+                }
+            }
+        }
+    }
+}
+
+data class WeeklyMealData(
+    val averageCalories: Float,
+    val averageProtein: Float,
+    val averageCarbs: Float,
+    val averageFat: Float,
+    val averageFiber: Float
+)
+
+fun calculateWeeklyData(mealsData: MealsData): WeeklyMealData {
+    val endDate = LocalDate.now()
+    val startDate = endDate.minusDays(6) // Last 7 days including today
+    val weeklyMeals = mealsData.schedule.filter { meal ->
+        val mealDate = meal.date
+        !mealDate.isBefore(startDate) && !mealDate.isAfter(endDate)
+    }
+
+    if (weeklyMeals.isEmpty()) {
+        return WeeklyMealData(0f, 0f, 0f, 0f, 0f)
+    }
+
+    val totalCalories = weeklyMeals.sumOf { meal ->
+        meal.items.filter { it.isConsumed }.sumOf { it.calories.toDouble() }
+    }.toFloat()
+    val totalProtein = weeklyMeals.sumOf { meal -> meal.protein.toDouble() }.toFloat()
+    val totalCarbs = weeklyMeals.sumOf { meal -> meal.carbs.toDouble() }.toFloat()
+    val totalFat = weeklyMeals.sumOf { meal -> meal.fat.toDouble() }.toFloat()
+    val totalFiber = weeklyMeals.sumOf { meal -> meal.fiber.toDouble() }.toFloat()
+
+    val daysWithData = weeklyMeals.distinctBy { it.date }.size
+    val days = if (daysWithData > 0) daysWithData else 1 // Avoid division by zero
+
+    return WeeklyMealData(
+        averageCalories = totalCalories / days,
+        averageProtein = totalProtein / days,
+        averageCarbs = totalCarbs / days,
+        averageFat = totalFat / days,
+        averageFiber = totalFiber / days
+    )
+}
+
+data class PhotoMealData(
+    val mealName: String,
+    val calories: Float,
+    val protein: Float,
+    val carbs: Float,
+    val fat: Float,
+    val fiber: Float
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PhotoMealConfirmationDialog(
+    photoMealData: PhotoMealData,
+    onConfirm: (String, Float, Float, Float, Float, Float) -> Unit,
+    onDismiss: () -> Unit
+) {
+    var mealName by remember { mutableStateOf(photoMealData.mealName) }
+    var calories by remember { mutableStateOf(photoMealData.calories.toString()) }
+    var protein by remember { mutableStateOf(photoMealData.protein.toString()) }
+    var carbs by remember { mutableStateOf(photoMealData.carbs.toString()) }
+    var fat by remember { mutableStateOf(photoMealData.fat.toString()) }
+    var fiber by remember { mutableStateOf(photoMealData.fiber.toString()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Confirm Meal") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .verticalScroll(rememberScrollState())
+                    .padding(vertical = 8.dp)
+            ) {
+                Text(
+                    text = "We detected the following meal from your photo. Please confirm or edit the details.",
+                    fontSize = 14.sp,
+                    color = Color(0xFF424242)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = mealName,
+                    onValueChange = { mealName = it },
+                    label = { Text("Meal Name") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = calories,
+                    onValueChange = { calories = it },
+                    label = { Text("Calories (kcal)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = protein,
+                    onValueChange = { protein = it },
+                    label = { Text("Protein (g)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = carbs,
+                    onValueChange = { carbs = it },
+                    label = { Text("Carbs (g)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = fat,
+                    onValueChange = { fat = it },
+                    label = { Text("Fat (g)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = fiber,
+                    onValueChange = { fiber = it },
+                    label = { Text("Fiber (g)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                try {
+                    val caloriesFloat = calories.toFloatOrNull() ?: 0f
+                    val proteinFloat = protein.toFloatOrNull() ?: 0f
+                    val carbsFloat = carbs.toFloatOrNull() ?: 0f
+                    val fatFloat = fat.toFloatOrNull() ?: 0f
+                    val fiberFloat = fiber.toFloatOrNull() ?: 0f
+                    onConfirm(mealName, caloriesFloat, proteinFloat, carbsFloat, fatFloat, fiberFloat)
+                } catch (e: Exception) {
+                    Log.e("MealsScreen", "Error parsing nutritional data: ${e.message}")
+                    // Optionally show an error message to the user
+                }
+            }) {
+                Text("Confirm")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        }
+    )
 }

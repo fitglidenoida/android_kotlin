@@ -7,8 +7,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -30,7 +28,7 @@ import com.trailblazewellness.fitglide.presentation.home.HomeViewModel
 import com.trailblazewellness.fitglide.presentation.strava.StravaAuthViewModel
 import kotlinx.coroutines.launch
 
-data class Achievement(val name: String, val description: String, val progress: Float)
+data class ActivityLogEntry(val description: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,8 +45,6 @@ fun ProfileScreen(
     var isHealthVitalsExpanded by remember { mutableStateOf(true) }
     var isFitnessBridgeExpanded by remember { mutableStateOf(false) }
     var isSetGoalsExpanded by remember { mutableStateOf(true) }
-    var isProgressTrendsExpanded by remember { mutableStateOf(false) }
-    var isHealthInsightsExpanded by remember { mutableStateOf(false) }
     var isSettingsExpanded by remember { mutableStateOf(false) }
     var showStrategyPopup by remember { mutableStateOf(false) }
     val stravaAuthState by stravaAuthViewModel.authState.collectAsState()
@@ -80,20 +76,25 @@ fun ProfileScreen(
     val homeData by homeViewModel.homeData.collectAsState()
     val authState = authRepository.getAuthState()
     val userName = authState.userName ?: "User"
-    val totalSteps = homeData.watchSteps + homeData.manualSteps
+    val totalSteps = homeData.watchSteps + homeData.manualSteps + homeData.trackedSteps
+
+    // Dynamic membership status (could be fetched from Strapi)
+    val membershipStatus by remember { mutableStateOf("FitGlide Member") } // Placeholder for dynamic fetch
+
+    // Dynamic tracking stats
     val trackingStats = mapOf(
         "Steps" to totalSteps.toString(),
         "Sleep" to String.format("%.1f", homeData.sleepHours) + "h",
         "Calories" to homeData.caloriesBurned.toString()
     )
-    val achievements = listOf(
-        Achievement("Step Master", "Reach 10,000 steps", totalSteps / 10000f),
-        Achievement("Hydration Hero", "Drink 3L water", homeData.hydration / 3f)
-    )
-    val activityLog = listOf(
-        "Logged $totalSteps steps today",
-        "Burned ${homeData.caloriesBurned} calories in workout"
-    )
+
+    // Dynamic activity log (should be fetched from a data source)
+    val activityLog = remember {
+        listOf(
+            ActivityLogEntry("Logged $totalSteps steps today"),
+            ActivityLogEntry("Burned ${homeData.caloriesBurned} calories in workout")
+        )
+    }
 
     FitGlideTheme {
         Scaffold(
@@ -144,7 +145,7 @@ fun ProfileScreen(
                                         color = MaterialTheme.colorScheme.onPrimary
                                     )
                                     Text(
-                                        text = "FitGlide Member",
+                                        text = membershipStatus,
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                                     )
@@ -273,84 +274,13 @@ fun ProfileScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        activityLog.forEach { activity ->
+                        activityLog.forEach { entry ->
                             Text(
-                                text = activity,
+                                text = entry.description,
                                 fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(vertical = 4.dp)
                             )
-                        }
-                    }
-                }
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = "Achievements",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(achievements) { achievement ->
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.surface
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(50.dp)
-                                                .clip(CircleShape)
-                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "🏆",
-                                                fontSize = 24.sp
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = achievement.name,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = achievement.description,
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "${(achievement.progress * 100).toInt()}% Complete",
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        IconButton(onClick = { /* TODO: Share achievement */ }) {
-                                            Icon(
-                                                imageVector = Icons.Default.Share,
-                                                contentDescription = "Share",
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -503,40 +433,6 @@ fun ProfileScreen(
                         ) {
                             Text("Save")
                         }
-                    }
-                }
-                item {
-                    ExpandableSection(
-                        title = "Progress Trends",
-                        isExpanded = isProgressTrendsExpanded,
-                        onToggle = { isProgressTrendsExpanded = !isProgressTrendsExpanded }
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                                .background(Color.LightGray),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Weight/Steps Trend Graph Placeholder",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-                item {
-                    ExpandableSection(
-                        title = "Health Insights",
-                        isExpanded = isHealthInsightsExpanded,
-                        onToggle = { isHealthInsightsExpanded = !isHealthInsightsExpanded }
-                    ) {
-                        Text(
-                            text = "Aim for 8h sleep to improve recovery!",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
                     }
                 }
                 item {
@@ -694,7 +590,9 @@ fun EditableField(
         modifier = Modifier.fillMaxWidth(),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
         )
     )
 }
@@ -725,7 +623,9 @@ fun DropdownField(
             },
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
             )
         )
         DropdownMenu(
