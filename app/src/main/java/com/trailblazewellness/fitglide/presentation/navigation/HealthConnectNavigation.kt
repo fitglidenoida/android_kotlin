@@ -28,9 +28,11 @@ import com.trailblazewellness.fitglide.data.api.StrapiRepository
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectRepository
 import com.trailblazewellness.fitglide.presentation.social.FriendsScreen
+import com.trailblazewellness.fitglide.presentation.home.CreateWeightLossStory
 import com.trailblazewellness.fitglide.presentation.home.HomeScreen
 import com.trailblazewellness.fitglide.presentation.home.HomeViewModel
 import com.trailblazewellness.fitglide.presentation.home.PostDetailScreen
+import com.trailblazewellness.fitglide.presentation.home.WeightLossStories
 import com.trailblazewellness.fitglide.presentation.meals.MealsScreen
 import com.trailblazewellness.fitglide.presentation.meals.MealsViewModel
 import com.trailblazewellness.fitglide.presentation.profile.ProfileScreen
@@ -45,8 +47,6 @@ import com.trailblazewellness.fitglide.presentation.workouts.WorkoutDetailScreen
 import com.trailblazewellness.fitglide.presentation.workouts.WorkoutPlanScreen
 import com.trailblazewellness.fitglide.presentation.workouts.WorkoutScreen
 import com.trailblazewellness.fitglide.presentation.workouts.WorkoutViewModel
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,7 +60,9 @@ fun HealthConnectNavigation(
     userName: String,
     commonViewModel: CommonViewModel,
     homeViewModel: HomeViewModel,
-    successStoryViewModel: SuccessStoryViewModel
+    successStoryViewModel: SuccessStoryViewModel,
+    stravaAuthViewModel: StravaAuthViewModel,
+    strapiApi: StrapiApi
 ) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -79,16 +81,6 @@ fun HealthConnectNavigation(
         commonViewModel = commonViewModel,
         authToken = formattedAuthToken,
         userId = authRepository.getAuthState().getId().toString()
-    )
-    // Create StravaAuthViewModel manually (non-Hilt)
-    val stravaAuthViewModel = StravaAuthViewModel(
-        strapiApi = Retrofit.Builder()
-            .baseUrl("https://admin.fitglide.in/")
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
-            .create(StrapiApi::class.java),
-        commonViewModel = commonViewModel,
-        context = context
     )
 
     FitGlideTheme {
@@ -170,15 +162,19 @@ fun HealthConnectNavigation(
                     composable("workout_plan") {
                         WorkoutPlanScreen(
                             navController = navController,
-                            viewModel = workoutViewModel
+                            viewModel = workoutViewModel,
+                            strapiRepository = strapiRepository,
+                            authRepository = authRepository
                         )
                     }
                     composable("workout_detail/{workoutId}") { backStackEntry ->
                         val workoutId = backStackEntry.arguments?.getString("workoutId") ?: ""
                         WorkoutDetailScreen(
-                            navController = navController,
                             workoutId = workoutId,
-                            viewModel = workoutViewModel
+                            strapiApi = strapiApi,
+                            commonViewModel = commonViewModel,
+                            navController = navController,
+                            healthConnectManager = HealthConnectManager(context)
                         )
                     }
                     composable("sleep") {
@@ -210,22 +206,26 @@ fun HealthConnectNavigation(
                         Text("Settings Screen - TBD", modifier = Modifier.padding(16.dp))
                     }
                     composable("friends") {
-                        FriendsScreen(navController, commonViewModel, authRepository)
+                        FriendsScreen(navController, commonViewModel, homeViewModel, authRepository)
                     }
                     composable("postDetail/{postId}") { backStackEntry ->
-                        val postId = backStackEntry.arguments?.getString("postId") ?: return@composable
+                        val postId = backStackEntry.arguments?.getString("postId") ?: ""
                         PostDetailScreen(postId, commonViewModel, navController)
                     }
                     composable("challengeDetail/{challengeId}") { backStackEntry ->
-                        val challengeId = backStackEntry.arguments?.getString("challengeId") ?: return@composable
+                        val challengeId = backStackEntry.arguments?.getString("challengeId") ?: ""
                         val userId = authRepository.authStateFlow.collectAsState().value.getId() ?: ""
                         ChallengeDetailScreen(challengeId, commonViewModel, navController, userId)
                     }
-                    composable("weight_loss_story") {
-                        // Placeholder for WeightLossStoryScreen
-                        Text(
-                            text = "Weight Loss Story Screen - TBD",
-                            modifier = Modifier.padding(16.dp)
+                    composable("create_weight_loss_stories") {
+                        CreateWeightLossStory(
+                            navController = navController,
+                            viewModel = successStoryViewModel
+                        )
+                    }
+                    composable("stories_listings") {
+                        WeightLossStories(
+                            viewModel = successStoryViewModel
                         )
                     }
                 }

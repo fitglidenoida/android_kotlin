@@ -2,10 +2,12 @@ package com.trailblazewellness.fitglide.data.api
 
 import com.google.gson.annotations.SerializedName
 import com.trailblazewellness.fitglide.presentation.meals.*
+import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.*
 
 interface StrapiApi {
+
     // Health Logs
     @POST("health-logs")
     suspend fun postHealthLog(
@@ -145,7 +147,7 @@ interface StrapiApi {
     @PUT("users/{id}")
     suspend fun updateUserProfile(
         @Path("id") id: String,
-        @Body body: UserProfileBody,
+        @Body body: UserProfileRequest, // Changed to use UserProfileRequest directly, removing UserProfileBody
         @Header("Authorization") token: String
     ): Response<UserProfileResponse>
 
@@ -327,10 +329,16 @@ interface StrapiApi {
         @Header("Authorization") token: String
     ): Response<CommentListResponse>
 
-    @GET("strava/auth")
+    @GET("strava-auth")
     suspend fun initiateStravaAuth(
-        @Header("Authorization") token: String
+        @Query("state") state: String
     ): Response<StravaAuthResponse>
+
+    @POST("strava-callback")
+    suspend fun stravaCallback(
+        @Body request: StravaCallbackRequest,
+        @Header("Authorization") token: String
+    ): Response<StravaCallbackResponse>
 
     @POST("strava/token")
     suspend fun exchangeStravaCode(
@@ -356,6 +364,19 @@ interface StrapiApi {
         @Header("Authorization") token: String
     ): Response<BadgeListResponse>
 
+    @GET("exercises")
+    suspend fun getExercises(
+        @Query("pagination[pageSize]") pageSize: Int = 100,
+        @Query("pagination[page]") page: Int = 1,
+        @Header("Authorization") token: String
+    ): Response<ExerciseListResponse>
+
+    @Multipart
+    @POST("upload")
+    suspend fun uploadFile(
+        @Part file: MultipartBody.Part,
+        @Header("Authorization") token: String
+    ): Response<List<MediaData>>
     // Data Classes
     data class UserId(
         @SerializedName("id") val id: String?
@@ -452,16 +473,27 @@ interface StrapiApi {
         @SerializedName("TotalTimePlanned") val totalTimePlanned: Float,
         @SerializedName("CaloriesPlanned") val caloriesPlanned: Float,
         @SerializedName("sport_type") val sportType: String,
-        @SerializedName("weekNumber") val weekNumber: Int,
         val exercises: List<ExerciseId>,
-        @SerializedName("users_permissions_user") val usersPermissionsUser: UserId
+        @SerializedName("exercise_order") val exerciseOrder: List<String>,
+        @SerializedName("is_template") val isTemplate: Boolean,
+        @SerializedName("users_permissions_user") val usersPermissionsUser: UserId,
+        val completed: Boolean = false
     )
 
+    data class ExerciseDetail(
+        val id: String,
+        val sets: Int,
+        val reps: Int,
+        val weight: Int,
+        @SerializedName("rest_between_sets") val restBetweenSets: Int
+    )
+    data class ExerciseListResponse(val data: List<ExerciseEntry>)
     data class ExerciseId(val id: String)
     data class WorkoutResponse(val data: WorkoutEntry)
     data class WorkoutListResponse(val data: List<WorkoutEntry>)
     data class WorkoutEntry(
         val id: String,
+        @SerializedName("documentId") val documentId: String,
         @SerializedName("workoutId") val workoutId: String,
         @SerializedName("Title") val title: String,
         @SerializedName("Description") val description: String?,
@@ -470,14 +502,17 @@ interface StrapiApi {
         @SerializedName("CaloriesPlanned") val caloriesPlanned: Float,
         @SerializedName("sport_type") val sportType: String,
         @SerializedName("dayNumber") val dayNumber: Int,
-        @SerializedName("weekNumber") val weekNumber: Int,
-        val exercises: List<ExerciseEntry>
+        val exercises: List<ExerciseEntry>?,
+        @SerializedName("exercise_order") val exerciseOrder: List<String>?,
+        @SerializedName("is_template") val isTemplate: Boolean?,
+        val completed: Boolean = false
     )
     data class ExerciseEntry(
         val id: String,
-        val name: String,
+        val name: String?,
         val reps: Int?,
-        val duration: Float?
+        val duration: Float?,
+        val sets: Int?
     )
 
     // Workout Logs
@@ -515,8 +550,10 @@ interface StrapiApi {
         @SerializedName("HeartRateMinimum") val heartRateMinimum: Long?,
         val route: List<Map<String, Float>>?,
         val completed: Boolean,
-        val notes: String?
-    )
+        val notes: String?,
+        val type: String?
+    ) {
+    }
 
     // Health Vitals
     data class HealthVitalsBody(val data: HealthVitalsRequest)
@@ -558,7 +595,9 @@ interface StrapiApi {
         @SerializedName("weightLost") val weightLost: Double,
         @SerializedName("storyText") val storyText: String,
         @SerializedName("users_permissions_user") val usersPermissionsUser: UserId,
-        @SerializedName("visibility") val visibility: String = "Everyone"
+        @SerializedName("visibility") val visibility: String = "Everyone",
+        @SerializedName("beforeImage") val beforeImage: MediaId? = null,
+        @SerializedName("afterImage") val afterImage: MediaId? = null
     )
     data class WeightLossStoryResponse(val data: WeightLossStoryEntry)
     data class WeightLossStoryListResponse(val data: List<WeightLossStoryEntry>)
@@ -573,13 +612,16 @@ interface StrapiApi {
         @SerializedName("likes") val likes: Int?,
         @SerializedName("visibility") val visibility: String?,
         @SerializedName("users_permissions_user") val usersPermissionsUser: UserEntry?,
+        @SerializedName("beforeImage") val beforeImage: MediaData? = null,
+        @SerializedName("afterImage") val afterImage: MediaData? = null,
         @SerializedName("createdAt") val createdAt: String?,
         @SerializedName("updatedAt") val updatedAt: String?,
         @SerializedName("publishedAt") val publishedAt: String?
     )
-
+    // New MediaId for referencing uploaded images
+    data class MediaId(val id: String)
     // User Profile
-    data class UserProfileBody(val data: UserProfileRequest)
+    // Removed UserProfileBody, using UserProfileRequest directly
     data class UserProfileRequest(
         val username: String? = null,
         @SerializedName("firstName") val firstName: String? = null,
@@ -587,8 +629,11 @@ interface StrapiApi {
         val email: String? = null,
         val mobile: Long? = null,
         @SerializedName("notificationsEnabled") val notificationsEnabled: Boolean? = null,
-        @SerializedName("maxGreetingsEnabled") val maxGreetingsEnabled: Boolean? = null
+        @SerializedName("maxGreetingsEnabled") val maxGreetingsEnabled: Boolean? = null,
+        @SerializedName("athlete_id") val athlete_id: String? = null,
+        @SerializedName("strava_connected") val strava_connected: Boolean? = null
     )
+
     data class UserProfileResponse(
         val id: String,
         val username: String,
@@ -597,7 +642,9 @@ interface StrapiApi {
         val email: String,
         val mobile: Long?,
         @SerializedName("notificationsEnabled") val notificationsEnabled: Boolean?,
-        @SerializedName("maxGreetingsEnabled") val maxGreetingsEnabled: Boolean?
+        @SerializedName("maxGreetingsEnabled") val maxGreetingsEnabled: Boolean?,
+        @SerializedName("athlete_id") val athlete_id: String?,
+        @SerializedName("strava_connected") val strava_connected: Boolean?
     )
 
     // Diet and Meals
@@ -613,7 +660,7 @@ interface StrapiApi {
         @SerializedName("plan_id") val planId: String,
         @SerializedName("total_calories") val totalCalories: Int,
         @SerializedName("diet_preference") val dietPreference: String,
-        @SerializedName("Active") val active: Boolean,
+        @SerializedName("active") val active: Boolean, // Fixed from Active
         @SerializedName("points_earned") val pointsEarned: Int,
         @SerializedName("diet_goal") val dietGoal: String,
         val meals: List<MealEntry>?
@@ -691,9 +738,9 @@ interface StrapiApi {
     data class PostBody(val data: PostRequest)
     data class PostRequest(
         val user: UserId,
-        val pack: UserId,
+        val pack: UserId?, // Made nullable
         val type: String,
-        val data: Map<String, Any>
+        val data: Map<String, String>
     )
     data class PostResponse(val data: PostEntry)
     data class PostListResponse(val data: List<PostEntry>)
@@ -796,6 +843,16 @@ interface StrapiApi {
         val access_token: String,
         val refresh_token: String,
         val expires_at: Long
+    )
+
+    data class StravaCallbackRequest(
+        val code: String,
+        val state: String
+    )
+
+    data class StravaCallbackResponse(
+        val status: String,
+        val message: String?
     )
 
     data class DesiMessageResponse(

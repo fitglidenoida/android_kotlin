@@ -63,32 +63,26 @@ fun MealsScreen(
     var photoMealData by remember { mutableStateOf<PhotoMealData?>(null) }
     var isProcessingPhoto by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf(mealsData.selectedDate) }
-    var showMealPicker by remember { mutableStateOf(false) } // Initially false, controlled by LaunchedEffect
+    var showMealPicker by remember { mutableStateOf(false) }
     val scrollState = rememberScrollState()
     val mealTypes = listOf("Veg", "Non-Veg", "Mixed")
-    val allMealsDone = mealsData.schedule.all { it.items.all { item -> item.isConsumed } }
+    val allMealsDone = mealsData.schedule?.all { it.items.all { item -> item.isConsumed } } ?: false
 
-    // Automatically open MealPickerDialog if no diet plan is set
     LaunchedEffect(mealsData.hasDietPlan) {
         if (!mealsData.hasDietPlan) {
             showMealPicker = true
         }
     }
 
-    // Camera launcher for taking a photo
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicturePreview()
     ) { bitmap ->
         if (bitmap != null) {
             Log.d("MealsScreen", "Photo captured successfully. Bitmap: $bitmap")
             isProcessingPhoto = true
-            // Simulate food recognition and nutritional data retrieval
-            // In a real app, this would involve API calls to Clarifai for food recognition and Edamam for nutritional data
             try {
-                // Placeholder: Simulate API response
-                // Replace with actual API calls to Clarifai and Edamam
-                val foodName = "Pizza" // Simulated food recognition result
-                val calories = 800f // Simulated nutritional data
+                val foodName = "Pizza"
+                val calories = 800f
                 val protein = 30f
                 val carbs = 100f
                 val fat = 35f
@@ -98,7 +92,6 @@ fun MealsScreen(
                 showPhotoConfirmation = true
             } catch (e: Exception) {
                 Log.e("MealsScreen", "Error processing photo: ${e.message}", e)
-                // Show error message to user
                 photoMealData = PhotoMealData("Unknown Food", 0f, 0f, 0f, 0f, 0f)
                 showPhotoConfirmation = true
             } finally {
@@ -123,7 +116,7 @@ fun MealsScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFFFFFFFF))
+                    .background(MaterialTheme.colorScheme.background)
                     .padding(16.dp)
                     .verticalScroll(scrollState),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -132,7 +125,7 @@ fun MealsScreen(
                     text = "Hey $userName, Fuel Up!",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -142,15 +135,23 @@ fun MealsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = { selectedDate = selectedDate.minusDays(1) }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Day")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Previous Day",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                     Text(
                         text = selectedDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy")),
                         fontSize = 18.sp,
-                        color = Color(0xFF212121)
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     IconButton(onClick = { selectedDate = selectedDate.plusDays(1) }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Day")
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Next Day",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -177,14 +178,14 @@ fun MealsScreen(
                     ) {
                         Row(
                             modifier = Modifier
-                                .background(Brush.linearGradient(listOf(Color(0xFFFF5722), Color(0xFFFFA500))))
+                                .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)))
                                 .padding(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Shield,
                                 contentDescription = "Streak",
-                                tint = Color.White,
+                                tint = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(modifier = Modifier.width(8.dp))
@@ -192,7 +193,7 @@ fun MealsScreen(
                                 text = "Streak: ${mealsData.streak} days",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = MaterialTheme.colorScheme.onPrimary
                             )
                         }
                     }
@@ -206,18 +207,18 @@ fun MealsScreen(
                     text = "Current Meal",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 if (allMealsDone) {
                     Text(
                         text = "All Meals Done for Today!",
                         fontSize = 16.sp,
-                        color = Color(0xFF4CAF50),
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.padding(16.dp)
                     )
                 } else {
                     mealsData.currentMeal?.let { currentMeal ->
-                        val index = mealsData.schedule.indexOf(currentMeal)
+                        val index = mealsData.schedule?.indexOf(currentMeal) ?: -1
                         MealCard(
                             slot = currentMeal,
                             viewModel = viewModel,
@@ -227,7 +228,7 @@ fun MealsScreen(
                     } ?: Text(
                         text = "No Upcoming Meals Today",
                         fontSize = 16.sp,
-                        color = Color(0xFF757575),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(16.dp)
                     )
                 }
@@ -237,14 +238,16 @@ fun MealsScreen(
                     text = "Day’s Schedule",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 DailySchedule(
-                    schedule = mealsData.schedule.filter { it.date == selectedDate },
+                    schedule = mealsData.schedule?.filter { it.date == selectedDate } ?: emptyList(),
                     viewModel = viewModel,
                     currentMeal = mealsData.currentMeal,
                     onMealClick = { slot ->
-                        viewModel.updateCurrentMeal(mealsData.schedule.map { if (it == slot) it.copy() else it })
+                        mealsData.schedule?.let { schedule ->
+                            viewModel.updateCurrentMeal(schedule.map { if (it == slot) it.copy() else it })
+                        }
                     }
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -253,7 +256,7 @@ fun MealsScreen(
                     text = "Daily Quest",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 LazyRow(
                     modifier = Modifier.fillMaxWidth(),
@@ -280,15 +283,15 @@ fun MealsScreen(
                     text = "Insights",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 Surface(
                     shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFE8F5E9),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
-                        .clickable { showWeeklyInsights = true }
+                        .clickable { showWeeklyInsights = true },
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
                 ) {
                     Column(
                         modifier = Modifier
@@ -298,7 +301,7 @@ fun MealsScreen(
                         Text(
                             text = "View your weekly meal insights",
                             fontSize = 14.sp,
-                            color = Color(0xFF424242)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
@@ -308,7 +311,7 @@ fun MealsScreen(
                     text = "Recipes",
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 RecipeCarousel(viewModel)
                 Spacer(modifier = Modifier.height(16.dp))
@@ -319,10 +322,14 @@ fun MealsScreen(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(top = 48.dp, start = 16.dp),
-                containerColor = Color(0xFF4CAF50),
+                containerColor = MaterialTheme.colorScheme.primary,
                 shape = CircleShape
             ) {
-                Icon(Icons.Default.CameraAlt, contentDescription = "Snap Meal Photo", tint = Color.White)
+                Icon(
+                    Icons.Default.CameraAlt,
+                    contentDescription = "Snap Meal Photo",
+                    tint = MaterialTheme.colorScheme.onPrimary
+                )
             }
 
             FloatingActionButton(
@@ -330,10 +337,14 @@ fun MealsScreen(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .padding(top = 48.dp, end = 16.dp),
-                containerColor = Color(0xFFFF5722),
+                containerColor = MaterialTheme.colorScheme.secondary,
                 shape = CircleShape
             ) {
-                Icon(Icons.Default.Restaurant, contentDescription = "Pick Meal", tint = Color.White)
+                Icon(
+                    Icons.Default.Restaurant,
+                    contentDescription = "Pick Meal",
+                    tint = MaterialTheme.colorScheme.onSecondary
+                )
             }
 
             FloatingActionButton(
@@ -341,13 +352,13 @@ fun MealsScreen(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(16.dp),
-                containerColor = Color(0xFF4CAF50),
+                containerColor = MaterialTheme.colorScheme.primary,
                 shape = CircleShape
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Create Diet Plan",
-                    tint = Color.White,
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(36.dp)
                 )
             }
@@ -383,7 +394,7 @@ fun MealsScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     CircularProgressIndicator(
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.size(48.dp)
                     )
                 }
@@ -436,9 +447,17 @@ fun MealPickerDialog(
     val filteredDinner = favoriteFoods.filter { it.contains(dinnerSearch, ignoreCase = true) }
     val filteredSnack = favoriteFoods.filter { it.contains(snackSearch, ignoreCase = true) }
 
+    val mealsData by viewModel.mealsData.collectAsState()
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Set Up Your Diet Plan") },
+        title = {
+            Text(
+                "Set Up Your Diet Plan",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleLarge
+            )
+        },
         text = {
             Column {
                 ExposedDropdownMenuBox(
@@ -447,22 +466,33 @@ fun MealPickerDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     TextField(
-                        value = viewModel.mealsData.value.mealType,
+                        value = mealsData.mealType,
                         onValueChange = { viewModel.setMealType(it) },
-                        label = { Text("Diet Preference") },
+                        label = { Text("Diet Preference", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                         readOnly = true,
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = mealTypeExpanded) },
                         modifier = Modifier
-                            .menuAnchor()
                             .fillMaxWidth()
+                            .menuAnchor(MenuAnchorType.PrimaryEditable),
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                     ExposedDropdownMenu(
                         expanded = mealTypeExpanded,
-                        onDismissRequest = { mealTypeExpanded = false }
+                        onDismissRequest = { mealTypeExpanded = false },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surface)
                     ) {
                         mealTypes.forEach { type ->
                             DropdownMenuItem(
-                                text = { Text(type) },
+                                text = { Text(type, color = MaterialTheme.colorScheme.onSurface) },
                                 onClick = {
                                     viewModel.setMealType(type)
                                     mealTypeExpanded = false
@@ -482,11 +512,11 @@ fun MealPickerDialog(
                     OutlinedTextField(
                         value = breakfastSearch,
                         onValueChange = { breakfastSearch = it },
-                        label = { Text("Breakfast Favorite") },
-                        placeholder = { Text("e.g., Dosa") },
+                        label = { Text("Breakfast Favorite", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        placeholder = { Text("e.g., Dosa", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor()
+                            .menuAnchor(MenuAnchorType.PrimaryEditable)
                             .focusRequester(focusRequester)
                             .focusable(),
                         keyboardOptions = KeyboardOptions.Default.copy(
@@ -497,6 +527,7 @@ fun MealPickerDialog(
                             Icon(
                                 Icons.Default.Search,
                                 contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .padding(horizontal = 8.dp)
                                     .clickable {
@@ -504,7 +535,19 @@ fun MealPickerDialog(
                                         focusRequester.requestFocus()
                                     }
                             )
-                        }
+                        },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
                     )
                     LaunchedEffect(breakfastExpanded) {
                         if (breakfastExpanded) focusRequester.requestFocus()
@@ -512,11 +555,13 @@ fun MealPickerDialog(
                     ExposedDropdownMenu(
                         expanded = breakfastExpanded,
                         onDismissRequest = { breakfastExpanded = false },
-                        modifier = Modifier.heightIn(max = 200.dp)
+                        modifier = Modifier
+                            .heightIn(max = 200.dp)
+                            .background(MaterialTheme.colorScheme.surface)
                     ) {
                         filteredBreakfast.forEach { food ->
                             DropdownMenuItem(
-                                text = { Text(food) },
+                                text = { Text(food, color = MaterialTheme.colorScheme.onSurface) },
                                 onClick = {
                                     breakfastFav = food
                                     breakfastSearch = food
@@ -530,7 +575,7 @@ fun MealPickerDialog(
                     Text(
                         text = "Can’t find it? We’ll add it!",
                         fontSize = 12.sp,
-                        color = Color(0xFF757575),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     breakfastFav = breakfastSearch
@@ -546,11 +591,11 @@ fun MealPickerDialog(
                     OutlinedTextField(
                         value = lunchSearch,
                         onValueChange = { lunchSearch = it },
-                        label = { Text("Lunch Favorite") },
-                        placeholder = { Text("e.g., Chole") },
+                        label = { Text("Lunch Favorite", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        placeholder = { Text("e.g., Chole", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor()
+                            .menuAnchor(MenuAnchorType.PrimaryEditable)
                             .focusRequester(focusRequester)
                             .focusable(),
                         keyboardOptions = KeyboardOptions.Default.copy(
@@ -561,6 +606,7 @@ fun MealPickerDialog(
                             Icon(
                                 Icons.Default.Search,
                                 contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .padding(horizontal = 8.dp)
                                     .clickable {
@@ -568,7 +614,19 @@ fun MealPickerDialog(
                                         focusRequester.requestFocus()
                                     }
                             )
-                        }
+                        },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
                     )
                     LaunchedEffect(lunchExpanded) {
                         if (lunchExpanded) focusRequester.requestFocus()
@@ -576,11 +634,13 @@ fun MealPickerDialog(
                     ExposedDropdownMenu(
                         expanded = lunchExpanded,
                         onDismissRequest = { lunchExpanded = false },
-                        modifier = Modifier.heightIn(max = 200.dp)
+                        modifier = Modifier
+                            .heightIn(max = 200.dp)
+                            .background(MaterialTheme.colorScheme.surface)
                     ) {
                         filteredLunch.forEach { food ->
                             DropdownMenuItem(
-                                text = { Text(food) },
+                                text = { Text(food, color = MaterialTheme.colorScheme.onSurface) },
                                 onClick = {
                                     lunchFav = food
                                     lunchSearch = food
@@ -594,7 +654,7 @@ fun MealPickerDialog(
                     Text(
                         text = "Can’t find it? We’ll add it!",
                         fontSize = 12.sp,
-                        color = Color(0xFF757575),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     lunchFav = lunchSearch
@@ -610,11 +670,11 @@ fun MealPickerDialog(
                     OutlinedTextField(
                         value = dinnerSearch,
                         onValueChange = { dinnerSearch = it },
-                        label = { Text("Dinner Favorite") },
-                        placeholder = { Text("e.g., Roti") },
+                        label = { Text("Dinner Favorite", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        placeholder = { Text("e.g., Roti", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor()
+                            .menuAnchor(MenuAnchorType.PrimaryEditable)
                             .focusRequester(focusRequester)
                             .focusable(),
                         keyboardOptions = KeyboardOptions.Default.copy(
@@ -625,6 +685,7 @@ fun MealPickerDialog(
                             Icon(
                                 Icons.Default.Search,
                                 contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .padding(horizontal = 8.dp)
                                     .clickable {
@@ -632,7 +693,19 @@ fun MealPickerDialog(
                                         focusRequester.requestFocus()
                                     }
                             )
-                        }
+                        },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
                     )
                     LaunchedEffect(dinnerExpanded) {
                         if (dinnerExpanded) focusRequester.requestFocus()
@@ -640,11 +713,13 @@ fun MealPickerDialog(
                     ExposedDropdownMenu(
                         expanded = dinnerExpanded,
                         onDismissRequest = { dinnerExpanded = false },
-                        modifier = Modifier.heightIn(max = 200.dp)
+                        modifier = Modifier
+                            .heightIn(max = 200.dp)
+                            .background(MaterialTheme.colorScheme.surface)
                     ) {
                         filteredDinner.forEach { food ->
                             DropdownMenuItem(
-                                text = { Text(food) },
+                                text = { Text(food, color = MaterialTheme.colorScheme.onSurface) },
                                 onClick = {
                                     dinnerFav = food
                                     dinnerSearch = food
@@ -658,7 +733,7 @@ fun MealPickerDialog(
                     Text(
                         text = "Can’t find it? We’ll add it!",
                         fontSize = 12.sp,
-                        color = Color(0xFF757575),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     dinnerFav = dinnerSearch
@@ -674,11 +749,11 @@ fun MealPickerDialog(
                     OutlinedTextField(
                         value = snackSearch,
                         onValueChange = { snackSearch = it },
-                        label = { Text("Snack Favorite (Optional)") },
-                        placeholder = { Text("e.g., Fruit") },
+                        label = { Text("Snack Favorite (Optional)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                        placeholder = { Text("e.g., Fruit", color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor()
+                            .menuAnchor(MenuAnchorType.PrimaryEditable)
                             .focusRequester(focusRequester)
                             .focusable(),
                         keyboardOptions = KeyboardOptions.Default.copy(
@@ -689,6 +764,7 @@ fun MealPickerDialog(
                             Icon(
                                 Icons.Default.Search,
                                 contentDescription = "Search",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier
                                     .padding(horizontal = 8.dp)
                                     .clickable {
@@ -696,7 +772,19 @@ fun MealPickerDialog(
                                         focusRequester.requestFocus()
                                     }
                             )
-                        }
+                        },
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.surface,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                            unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
                     )
                     LaunchedEffect(snackExpanded) {
                         if (snackExpanded) focusRequester.requestFocus()
@@ -704,11 +792,13 @@ fun MealPickerDialog(
                     ExposedDropdownMenu(
                         expanded = snackExpanded,
                         onDismissRequest = { snackExpanded = false },
-                        modifier = Modifier.heightIn(max = 200.dp)
+                        modifier = Modifier
+                            .heightIn(max = 200.dp)
+                            .background(MaterialTheme.colorScheme.surface)
                     ) {
                         filteredSnack.forEach { food ->
                             DropdownMenuItem(
-                                text = { Text(food) },
+                                text = { Text(food, color = MaterialTheme.colorScheme.onSurface) },
                                 onClick = {
                                     snackFav = food
                                     snackSearch = food
@@ -722,54 +812,77 @@ fun MealPickerDialog(
                     Text(
                         text = "Can’t find it? We’ll add it!",
                         fontSize = 12.sp,
-                        color = Color(0xFF757575),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                     snackFav = snackSearch
                 }
                 Spacer(modifier = Modifier.height(8.dp))
 
-                Text("Number of Meals (Suggested: 3-6)", fontSize = 14.sp, color = Color(0xFF212121))
+                Text(
+                    text = "Number of Meals (Suggested: 3-6)",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 val mealCounts = (3..6).toList()
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(mealCounts) { count ->
                         FilterChip(
                             selected = mealCount == count,
                             onClick = { mealCount = count },
-                            label = { Text("$count") }
+                            label = { Text("$count", color = if (mealCount == count) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                labelColor = MaterialTheme.colorScheme.onSurface
+                            )
                         )
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = {
-                viewModel.createDietPlan(
-                    breakfastFav = breakfastFav,
-                    lunchFav = lunchFav,
-                    dinnerFav = dinnerFav,
-                    snackFav = snackFav,
-                    mealCount = mealCount
+            TextButton(
+                onClick = {
+                    viewModel.createDietPlan(
+                        breakfastFav = breakfastFav,
+                        lunchFav = lunchFav,
+                        dinnerFav = dinnerFav,
+                        snackFav = snackFav,
+                        mealCount = mealCount
+                    )
+                    onDismiss()
+                },
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.primary
                 )
-                onDismiss()
-            }) {
+            ) {
                 Text("Save")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
+            TextButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            ) {
                 Text("Cancel")
             }
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurface
     )
 }
 
 @Composable
 fun CalorieArc(bmr: Float, caloriesLogged: Float, onClick: () -> Unit) {
-    // Convert dp to px in a Composable context
     val density = LocalDensity.current
     val strokeWidthPx = with(density) { 10.dp.toPx() }
     val arcOffsetPx = with(density) { 10.dp.toPx() }
+    val primaryColor = MaterialTheme.colorScheme.primary
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
@@ -781,9 +894,9 @@ fun CalorieArc(bmr: Float, caloriesLogged: Float, onClick: () -> Unit) {
             Canvas(modifier = Modifier.size(160.dp)) {
                 val radius = size.width / 2 - arcOffsetPx
                 drawArc(
-                    color = Color(0xFF4CAF50),
+                    color = primaryColor,
                     startAngle = -90f,
-                    sweepAngle = 360f * (caloriesLogged / bmr),
+                    sweepAngle = 360f * (caloriesLogged / bmr).coerceAtMost(1f),
                     useCenter = false,
                     topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                     size = Size(radius * 2, radius * 2),
@@ -794,10 +907,14 @@ fun CalorieArc(bmr: Float, caloriesLogged: Float, onClick: () -> Unit) {
                 text = "${caloriesLogged.toInt()}",
                 fontSize = 36.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFF212121)
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
-        Text("Intake (Kcal)", fontSize = 14.sp, color = Color(0xFF757575))
+        Text(
+            "Intake (Kcal)",
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -807,16 +924,15 @@ fun MacroArcs(protein: Float, carbs: Float, fat: Float, fiber: Float) {
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        MacroArc("Protein", protein, 80f, Color(0xFF4CAF50))
-        MacroArc("Carbs", carbs, 200f, Color(0xFFFF5722))
-        MacroArc("Fat", fat, 60f, Color(0xFF9C27B0))
-        MacroArc("Fiber", fiber, 30f, Color(0xFF2196F3))
+        MacroArc("Protein", protein, 80f, MaterialTheme.colorScheme.primary)
+        MacroArc("Carbs", carbs, 200f, MaterialTheme.colorScheme.secondary)
+        MacroArc("Fat", fat, 60f, MaterialTheme.colorScheme.tertiary)
+        MacroArc("Fiber", fiber, 30f, MaterialTheme.colorScheme.primary)
     }
 }
 
 @Composable
 fun MacroArc(label: String, value: Float, max: Float, color: Color) {
-    // Convert dp to px in a Composable context
     val density = LocalDensity.current
     val strokeWidthPx = with(density) { 5.dp.toPx() }
     val arcOffsetPx = with(density) { 5.dp.toPx() }
@@ -841,10 +957,14 @@ fun MacroArc(label: String, value: Float, max: Float, color: Color) {
             Text(
                 text = "${value.toInt()}g",
                 fontSize = 16.sp,
-                color = Color(0xFF212121)
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
-        Text(label, fontSize = 12.sp, color = Color(0xFF757575))
+        Text(
+            label,
+            fontSize = 12.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -865,15 +985,25 @@ fun BMRCardCarousel(bmr: Float) {
         ) { (label, value) ->
             Surface(
                 shape = RoundedCornerShape(8.dp),
-                border = BorderStroke(2.dp, Color(0xFF757575)),
-                modifier = Modifier.width(200.dp)
+                border = BorderStroke(2.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)),
+                modifier = Modifier.width(200.dp),
+                color = MaterialTheme.colorScheme.surface
             ) {
                 Column(
                     modifier = Modifier.padding(8.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("${value.toInt()} Kcal", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121))
-                    Text(label, fontSize = 12.sp, color = Color(0xFF757575))
+                    Text(
+                        "${value.toInt()} Kcal",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        label,
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }
@@ -895,11 +1025,15 @@ fun DailySchedule(
         items(schedule) { slot ->
             Surface(
                 shape = RoundedCornerShape(4.dp),
-                color = if (slot == currentMeal) Color(0xFFE8F5E9) else if (slot.items.all { it.isConsumed }) Color(0xFFE8F5E9) else Color(0xFFFFF3E0),
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 4.dp)
-                    .clickable { onMealClick(slot) }
+                    .clickable { onMealClick(slot) },
+                color = when {
+                    slot == currentMeal -> MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                    slot.items.all { it.isConsumed } -> MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+                    else -> MaterialTheme.colorScheme.surface
+                }
             ) {
                 Row(
                     modifier = Modifier
@@ -917,16 +1051,20 @@ fun DailySchedule(
                                 else -> Icons.Default.Restaurant
                             },
                             contentDescription = "Meal Time",
-                            tint = Color(0xFF4CAF50),
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("${slot.type} - ${slot.time}", fontSize = 14.sp, color = Color(0xFF212121))
+                        Text(
+                            "${slot.type} - ${slot.time}",
+                            fontSize = 14.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
                     }
                     Text(
                         if (slot.items.all { it.isConsumed }) "Consumed" else "Pending",
                         fontSize = 12.sp,
-                        color = if (slot.items.all { it.isConsumed }) Color(0xFF4CAF50) else Color(0xFFFF5722)
+                        color = if (slot.items.all { it.isConsumed }) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
                     )
                 }
             }
@@ -940,11 +1078,15 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
     val favoriteFoods by viewModel.favoriteFoods.collectAsState()
     Surface(
         shape = RoundedCornerShape(8.dp),
-        border = BorderStroke(2.dp, if (isCurrent) Color(0xFFFF5722) else Color(0xFF4CAF50)),
+        border = BorderStroke(2.dp, if (isCurrent) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .background(if (slot.isMissed) Color(0xFFFFCDD2) else if (isCurrent) Color(0xFFFFF3E0) else Color.White)
+            .padding(vertical = 8.dp),
+        color = when {
+            slot.isMissed -> MaterialTheme.colorScheme.errorContainer
+            isCurrent -> MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
+            else -> MaterialTheme.colorScheme.surface
+        }
     ) {
         Column(
             modifier = Modifier
@@ -965,11 +1107,16 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
                             else -> Icons.Default.Restaurant
                         },
                         contentDescription = "Meal Time",
-                        tint = Color(0xFF4CAF50),
+                        tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(36.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("${slot.type} - ${slot.time}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121))
+                    Text(
+                        "${slot.type} - ${slot.time}",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
@@ -995,7 +1142,7 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
                         Text(
                             text = item.name,
                             fontSize = 14.sp,
-                            color = Color(0xFF424242),
+                            color = MaterialTheme.colorScheme.onSurface,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier
                                 .weight(1f)
@@ -1004,7 +1151,7 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
                         Text(
                             text = "${item.calories.toInt()} Kcal",
                             fontSize = 12.sp,
-                            color = Color(0xFF424242),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .weight(0.3f)
                                 .padding(horizontal = 8.dp)
@@ -1012,7 +1159,7 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
                         Text(
                             text = "${item.servingSize.toInt()}g",
                             fontSize = 12.sp,
-                            color = Color(0xFF424242),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier
                                 .weight(0.3f)
                                 .padding(horizontal = 8.dp)
@@ -1021,8 +1168,8 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
                             checked = item.isConsumed,
                             onCheckedChange = { viewModel.toggleConsumption(mealIndex, index) },
                             colors = CheckboxDefaults.colors(
-                                checkedColor = Color(0xFF4CAF50),
-                                uncheckedColor = Color.Gray
+                                checkedColor = MaterialTheme.colorScheme.primary,
+                                uncheckedColor = MaterialTheme.colorScheme.onSurfaceVariant
                             ),
                             modifier = Modifier
                                 .weight(0.15f)
@@ -1037,7 +1184,7 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
                                 Icon(
                                     imageVector = Icons.Default.Pending,
                                     contentDescription = "Change Component",
-                                    tint = Color(0xFFFF5722),
+                                    tint = MaterialTheme.colorScheme.secondary,
                                     modifier = Modifier.size(20.dp)
                                 )
                             }
@@ -1047,11 +1194,12 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
                                 modifier = Modifier
                                     .width(250.dp)
                                     .heightIn(max = 200.dp)
+                                    .background(MaterialTheme.colorScheme.surface)
                             ) {
                                 OutlinedTextField(
                                     value = searchQuery,
                                     onValueChange = { searchQuery = it },
-                                    label = { Text("Search") },
+                                    label = { Text("Search", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(8.dp)
@@ -1064,20 +1212,31 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
                                         Icon(
                                             Icons.Default.Search,
                                             contentDescription = "Search",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier
                                                 .padding(horizontal = 8.dp)
                                                 .clickable {
                                                     focusRequester.requestFocus()
                                                 }
                                         )
-                                    }
+                                    },
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
                                 )
                                 LaunchedEffect(expanded) {
                                     if (expanded) focusRequester.requestFocus()
                                 }
                                 filteredFoods.forEach { food ->
                                     DropdownMenuItem(
-                                        text = { Text(food) },
+                                        text = { Text(food, color = MaterialTheme.colorScheme.onSurface) },
                                         onClick = {
                                             val component = viewModel.searchComponents.value.firstOrNull { it.name == food }
                                             if (component != null) {
@@ -1094,15 +1253,27 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
                 }
             }
             Spacer(modifier = Modifier.height(12.dp))
-            Text("${slot.calories.toInt()} Kcal", fontSize = 14.sp, color = Color(0xFF757575))
-            Text("P: ${slot.protein}g, C: ${slot.carbs}g, F: ${slot.fat}g, Fib: ${slot.fiber}g", fontSize = 12.sp, color = Color(0xFF757575))
+            Text(
+                "${slot.calories.toInt()} Kcal",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                "P: ${slot.protein}g, C: ${slot.carbs}g, F: ${slot.fat}g, Fib: ${slot.fiber}g",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(modifier = Modifier.height(8.dp))
             Button(
                 onClick = { viewModel.sendToCookingBuddy(slot) },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                 shape = RoundedCornerShape(4.dp)
             ) {
-                Text("Send to Your Cooking Buddy", color = Color.White, fontSize = 12.sp)
+                Text(
+                    "Send to Your Cooking Buddy",
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontSize = 12.sp
+                )
             }
         }
     }
@@ -1112,23 +1283,32 @@ fun MealCard(slot: MealSlot, viewModel: MealsViewModel, mealIndex: Int, isCurren
 fun QuestCard(macro: String, progress: Float, max: Float) {
     Surface(
         shape = RoundedCornerShape(8.dp),
-        color = Color(0xFFFFF3E0),
         modifier = Modifier
             .width(200.dp)
-            .padding(vertical = 8.dp)
+            .padding(vertical = 8.dp),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
     ) {
         Column(
             modifier = Modifier.padding(8.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("$macro Goal", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121))
+            Text(
+                "$macro Goal",
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
             LinearProgressIndicator(
                 progress = { if (max > 0) (progress / max).coerceAtMost(1f) else 0f },
                 modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF4CAF50),
-                trackColor = Color(0xFFEEEEEE)
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
             )
-            Text("${progress.toInt()}g / ${max.toInt()}g", fontSize = 12.sp, color = Color(0xFF757575))
+            Text(
+                "${progress.toInt()}g / ${max.toInt()}g",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -1137,30 +1317,167 @@ fun QuestCard(macro: String, progress: Float, max: Float) {
 fun RecipeCarousel(viewModel: MealsViewModel) {
     val mealsData by viewModel.mealsData.collectAsState()
     LazyRow(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        items(mealsData.recipes) { recipe ->
-            Surface(
-                shape = RoundedCornerShape(8.dp),
-                color = Color(0xFFE8F5E9),
-                modifier = Modifier.width(200.dp)
+        items(mealsData.recipes ?: emptyList()) { component ->
+            RecipeCard(component = component)
+        }
+    }
+}
+
+@Composable
+fun RecipeCard(component: DietComponentCard) {
+    var showDetailsPopup by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .width(200.dp)
+            .height(120.dp)
+            .padding(4.dp)
+            .clickable { showDetailsPopup = true },
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        shape = RoundedCornerShape(8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = component.name,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                fontSize = 16.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "${component.calories} Kcal",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                fontSize = 14.sp
+            )
+        }
+    }
+
+    if (showDetailsPopup) {
+        RecipeDetailsPopup(
+            component = component,
+            onDismiss = { showDetailsPopup = false }
+        )
+    }
+}
+
+@Composable
+fun RecipeDetailsPopup(component: DietComponentCard, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        modifier = Modifier
+            .width(300.dp)
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(16.dp)),
+        title = {
+            Text(
+                text = component.name,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                textAlign = TextAlign.Center,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Column(
-                    modifier = Modifier.padding(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.surfaceVariant
                 ) {
-                    Text(recipe, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF212121))
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(
-                        onClick = { viewModel.logRecipe(recipe) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
-                        shape = RoundedCornerShape(4.dp)
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text("Log", color = Color.White, fontSize = 12.sp)
+                        Text(
+                            text = "${component.calories} Kcal",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            MacroDetail("Protein", component.protein, MaterialTheme.colorScheme.secondary)
+                            MacroDetail("Carbs", component.carbs, MaterialTheme.colorScheme.tertiary)
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly
+                        ) {
+                            MacroDetail("Fat", component.fat, MaterialTheme.colorScheme.secondary)
+                            MacroDetail("Fiber", component.fiber, MaterialTheme.colorScheme.tertiary)
+                        }
                     }
                 }
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Tap anywhere to close",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+                )
             }
+        },
+        confirmButton = {},
+        dismissButton = {},
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 8.dp
+    )
+}
+
+@Composable
+fun MacroDetail(label: String, value: String, accentColor: Color) {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        modifier = Modifier.padding(4.dp),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Column(
+            modifier = Modifier.padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                fontSize = 14.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleMedium,
+                color = accentColor,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
         }
     }
 }
@@ -1175,11 +1492,11 @@ fun MealsDetailsOverlay(mealsData: MealsData, onDismiss: () -> Unit) {
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color.White,
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(16.dp)
-                .width(350.dp)
+                .width(350.dp),
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
@@ -1191,38 +1508,38 @@ fun MealsDetailsOverlay(mealsData: MealsData, onDismiss: () -> Unit) {
                     text = "Meal Details",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
                     text = "BMR: ${mealsData.bmr.toInt()} Kcal",
                     fontSize = 16.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Logged: ${mealsData.caloriesLogged.toInt()} Kcal",
                     fontSize = 16.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Protein: ${mealsData.protein.toInt()}g",
                     fontSize = 16.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Carbs: ${mealsData.carbs.toInt()}g",
                     fontSize = 16.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Fat: ${mealsData.fat.toInt()}g",
                     fontSize = 16.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Fiber: ${mealsData.fiber.toInt()}g",
                     fontSize = 16.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -1231,7 +1548,6 @@ fun MealsDetailsOverlay(mealsData: MealsData, onDismiss: () -> Unit) {
 
 @Composable
 fun WeeklyInsightsOverlay(mealsData: MealsData, onDismiss: () -> Unit) {
-    // Calculate weekly data
     val weeklyData = calculateWeeklyData(mealsData)
 
     Box(
@@ -1242,11 +1558,11 @@ fun WeeklyInsightsOverlay(mealsData: MealsData, onDismiss: () -> Unit) {
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color.White,
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(16.dp)
-                .width(350.dp)
+                .width(350.dp),
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier
@@ -1258,80 +1574,77 @@ fun WeeklyInsightsOverlay(mealsData: MealsData, onDismiss: () -> Unit) {
                     text = "Weekly Meal Insights",
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Numerical Summaries
                 Text(
                     text = "Average Daily Intake:",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = "Calories: ${weeklyData.averageCalories.toInt()} kcal",
                     fontSize = 14.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Protein: ${weeklyData.averageProtein.toInt()}g",
                     fontSize = 14.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Carbs: ${weeklyData.averageCarbs.toInt()}g",
                     fontSize = 14.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Fat: ${weeklyData.averageFat.toInt()}g",
                     fontSize = 14.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
                     text = "Fiber: ${weeklyData.averageFiber.toInt()}g",
                     fontSize = 14.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Placeholder for Graphs
                 Text(
                     text = "Graphs: Coming Soon!",
                     fontSize = 14.sp,
-                    color = Color(0xFF757575),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(8.dp)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Insights
                 Text(
                     text = "Insights:",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 if (weeklyData.averageProtein < mealsData.proteinGoal * 0.8) {
                     Text(
                         text = "You're low on protein this week (${weeklyData.averageProtein.toInt()}g vs goal ${mealsData.proteinGoal.toInt()}g). Consider adding more protein-rich foods like chicken or lentils.",
                         fontSize = 14.sp,
-                        color = Color(0xFF424242)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 } else {
                     Text(
                         text = "Great job! You're meeting your protein goal this week.",
                         fontSize = 14.sp,
-                        color = Color(0xFF424242)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 if (weeklyData.averageCalories > mealsData.bmr * 1.2) {
                     Text(
                         text = "Your calorie intake (${weeklyData.averageCalories.toInt()} kcal) is higher than your BMR (${mealsData.bmr.toInt()} kcal). If weight loss is your goal, consider reducing portion sizes.",
                         fontSize = 14.sp,
-                        color = Color(0xFF424242)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }
@@ -1349,11 +1662,11 @@ data class WeeklyMealData(
 
 fun calculateWeeklyData(mealsData: MealsData): WeeklyMealData {
     val endDate = LocalDate.now()
-    val startDate = endDate.minusDays(6) // Last 7 days including today
-    val weeklyMeals = mealsData.schedule.filter { meal ->
+    val startDate = endDate.minusDays(6)
+    val weeklyMeals = mealsData.schedule?.filter { meal ->
         val mealDate = meal.date
         !mealDate.isBefore(startDate) && !mealDate.isAfter(endDate)
-    }
+    } ?: emptyList()
 
     if (weeklyMeals.isEmpty()) {
         return WeeklyMealData(0f, 0f, 0f, 0f, 0f)
@@ -1368,7 +1681,7 @@ fun calculateWeeklyData(mealsData: MealsData): WeeklyMealData {
     val totalFiber = weeklyMeals.sumOf { meal -> meal.fiber.toDouble() }.toFloat()
 
     val daysWithData = weeklyMeals.distinctBy { it.date }.size
-    val days = if (daysWithData > 0) daysWithData else 1 // Avoid division by zero
+    val days = if (daysWithData > 0) daysWithData else 1
 
     return WeeklyMealData(
         averageCalories = totalCalories / days,
@@ -1404,7 +1717,12 @@ fun PhotoMealConfirmationDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Confirm Meal") },
+        title = {
+            Text(
+                "Confirm Meal",
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        },
         text = {
             Column(
                 modifier = Modifier
@@ -1414,60 +1732,120 @@ fun PhotoMealConfirmationDialog(
                 Text(
                     text = "We detected the following meal from your photo. Please confirm or edit the details.",
                     fontSize = 14.sp,
-                    color = Color(0xFF424242)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = mealName,
                     onValueChange = { mealName = it },
-                    label = { Text("Meal Name") },
-                    modifier = Modifier.fillMaxWidth()
+                    label = { Text("Meal Name", color = MaterialTheme.colorScheme.onSurfaceVariant) },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = calories,
                     onValueChange = { calories = it },
-                    label = { Text("Calories (kcal)") },
+                    label = { Text("Calories (kcal)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = protein,
                     onValueChange = { protein = it },
-                    label = { Text("Protein (g)") },
+                    label = { Text("Protein (g)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = carbs,
                     onValueChange = { carbs = it },
-                    label = { Text("Carbs (g)") },
+                    label = { Text("Carbs (g)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = fat,
                     onValueChange = { fat = it },
-                    label = { Text("Fat (g)") },
+                    label = { Text("Fat (g)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
                 OutlinedTextField(
                     value = fiber,
                     onValueChange = { fiber = it },
-                    label = { Text("Fiber (g)") },
+                    label = { Text("Fiber (g)", color = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number)
+                    keyboardOptions = KeyboardOptions.Default.copy(keyboardType = KeyboardType.Number),
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surface,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        focusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 )
             }
         },
@@ -1482,16 +1860,24 @@ fun PhotoMealConfirmationDialog(
                     onConfirm(mealName, caloriesFloat, proteinFloat, carbsFloat, fatFloat, fiberFloat)
                 } catch (e: Exception) {
                     Log.e("MealsScreen", "Error parsing nutritional data: ${e.message}")
-                    // Optionally show an error message to the user
                 }
             }) {
-                Text("Confirm")
+                Text(
+                    "Confirm",
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(
+                    "Cancel",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.surface,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurface
     )
 }

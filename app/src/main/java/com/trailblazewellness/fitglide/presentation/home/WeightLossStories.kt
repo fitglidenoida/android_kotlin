@@ -1,35 +1,32 @@
 package com.trailblazewellness.fitglide.presentation.home
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-
-data class WeightLossStory(
-    val userName: String,
-    val weightLost: String,
-    val timeTaken: String,
-    val beforeThumbnail: String,
-    val afterThumbnail: String
-)
+import androidx.navigation.NavController
+import coil.compose.AsyncImage
+import com.trailblazewellness.fitglide.presentation.successstory.SuccessStoryViewModel
+import com.trailblazewellness.fitglide.presentation.successstory.WeightLossStory
+import kotlinx.coroutines.launch
 
 @Composable
 fun WeightLossStories(
-    stories: List<WeightLossStory> = listOf(
-        WeightLossStory("Alex", "10kg", "3 months", "before_alex.jpg", "after_alex.jpg"),
-        WeightLossStory("Sam", "8kg", "4 months", "before_sam.jpg", "after_sam.jpg"),
-        WeightLossStory("Taylor", "12kg", "5 months", "before_taylor.jpg", "after_taylor.jpg")
-    ),
+    viewModel: SuccessStoryViewModel,
     modifier: Modifier = Modifier
 ) {
+    val stories by viewModel.stories.collectAsState()
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -68,26 +65,20 @@ fun WeightLossStoryCard(story: WeightLossStory) {
             modifier = Modifier.padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
+            AsyncImage(
+                model = story.beforeImage ?: "https://via.placeholder.com/60",
+                contentDescription = "Before",
                 modifier = Modifier
                     .size(60.dp)
-                    .padding(end = 8.dp),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("Before", fontSize = 12.sp)
-                }
-            }
-            Surface(
+                    .padding(end = 8.dp)
+            )
+            AsyncImage(
+                model = story.afterImage ?: "https://via.placeholder.com/60",
+                contentDescription = "After",
                 modifier = Modifier
                     .size(60.dp)
-                    .padding(end = 8.dp),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Text("After", fontSize = 12.sp)
-                }
-            }
+                    .padding(end = 8.dp)
+            )
             Column {
                 Text(
                     text = story.userName,
@@ -97,11 +88,150 @@ fun WeightLossStoryCard(story: WeightLossStory) {
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "Lost ${story.weightLost} in ${story.timeTaken}",
+                    text = "Lost ${story.weightLost}kg",
                     fontSize = 14.sp,
                     color = MaterialTheme.colorScheme.onSurface,
                     style = MaterialTheme.typography.bodyMedium
                 )
+                Text(
+                    text = story.storyText.take(50) + if (story.storyText.length > 50) "..." else "",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun CreateWeightLossStory(
+    navController: NavController,
+    viewModel: SuccessStoryViewModel
+) {
+    val context = LocalContext.current
+    var userName by remember { mutableStateOf("") }
+    var weightLost by remember { mutableStateOf("") }
+    var timeTaken by remember { mutableStateOf("") }
+    var beforeImageUri by remember { mutableStateOf<String?>(null) }
+    var afterImageUri by remember { mutableStateOf<String?>(null) }
+    val coroutineScope = rememberCoroutineScope()
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val beforeImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        beforeImageUri = uri?.toString()
+    }
+    val afterImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        afterImageUri = uri?.toString()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        Text(
+            text = "Share Your Weight Loss Story",
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        OutlinedTextField(
+            value = userName,
+            onValueChange = { userName = it },
+            label = { Text("Your Name") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            value = weightLost,
+            onValueChange = { weightLost = it },
+            label = { Text("Weight Lost (e.g., 10kg)") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        OutlinedTextField(
+            value = timeTaken,
+            onValueChange = { timeTaken = it },
+            label = { Text("Time Taken (e.g., 3 months)") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Button(
+            onClick = { beforeImageLauncher.launch("image/*") },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Upload Before Photo")
+        }
+
+        beforeImageUri?.let {
+            AsyncImage(
+                model = it,
+                contentDescription = "Before Preview",
+                modifier = Modifier
+                    .size(100.dp)
+                    .padding(top = 8.dp)
+            )
+        }
+
+        Button(
+            onClick = { afterImageLauncher.launch("image/*") },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Upload After Photo")
+        }
+
+        afterImageUri?.let {
+            AsyncImage(
+                model = it,
+                contentDescription = "After Preview",
+                modifier = Modifier
+                    .size(100.dp)
+                    .padding(top = 8.dp)
+            )
+        }
+
+        errorMessage?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.error,
+                fontSize = 14.sp
+            )
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Button(
+                onClick = {
+                    if (userName.isNotBlank() && weightLost.isNotBlank() && timeTaken.isNotBlank()) {
+                        coroutineScope.launch {
+                            viewModel.addStory(
+                                userName = userName,
+                                weightLost = weightLost,
+                                timeTaken = timeTaken,
+                                beforeImageUri = beforeImageUri,
+                                afterImageUri = afterImageUri,
+                                onSuccess = { navController.popBackStack() },
+                                onError = { error -> errorMessage = error }
+                            )
+                        }
+                    } else {
+                        errorMessage = "Please fill all fields"
+                    }
+                },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Save")
+            }
+            OutlinedButton(
+                onClick = { navController.popBackStack() },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Cancel")
             }
         }
     }

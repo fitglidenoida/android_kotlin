@@ -21,6 +21,8 @@ import com.google.android.gms.common.GoogleApiAvailability
 import com.google.android.gms.location.*
 import com.trailblazewellness.fitglide.MainActivity
 import com.trailblazewellness.fitglide.R
+import com.trailblazewellness.fitglide.auth.AuthRepository
+import com.trailblazewellness.fitglide.auth.GoogleAuthManager
 import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.api.StrapiRepository
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
@@ -29,43 +31,45 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.LocalDateTime
-import java.time.format.DateTimeFormatter
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
 
 class WorkoutTrackingService : Service() {
+    private var authRepository: AuthRepository? = null
+    private var strapiRepository: StrapiRepository? = null
+    private var healthConnect: HealthConnectManager? = null
     private var commonViewModel: CommonViewModel? = null
-    private lateinit var healthConnect: HealthConnectManager
-    private lateinit var strapiRepository: StrapiRepository
 
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private var fusedLocationClient: FusedLocationProviderClient? = null
     private lateinit var sensorManager: SensorManager
     private var stepSensor: Sensor? = null
     private var lastLocation: android.location.Location? = null
-    private var totalDistance = 0f
-    private var startTime: Instant? = null
-    private var totalSteps = 0L
-    private var monitoredSteps = 0L
-    private var lastStepCount = 0L
-    private var movementTime = 0L
+    private var initialStepCount: Long = -1L
+    private var monitoredSteps: Long = 0L
+    private var totalSteps: Long = 0L
     private var isTracking = false
     private var isServiceRunning = false
-    private var initialStepCount: Long = -1L
-    private var lastMovedTime: Long = 0L
     private var userId: String = "1"
     private var workoutType: String = "Walking"
     private var token: String = ""
+    private var lastMovedTime: Long = 0L
+    private var lastStepTime: Long = 0L
+    private var hasMovedRecently: Boolean = false
 
     private val notificationManager by lazy { getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager }
-    private lateinit var locationCallback: LocationCallback
+    private var locationCallback: LocationCallback? = null
     private var stepListener: SensorEventListener? = null
+    private val sharedPreferences by lazy { getSharedPreferences("fitglide_prefs", Context.MODE_PRIVATE) }
 
     companion object {
         private const val CHANNEL_ID = "workout_tracking"
         private const val NOTIFICATION_ID = 3
-        private const val SYNC_INTERVAL_MS = 30_000L
-        private const val MOVEMENT_THRESHOLD_MS = 5_000L
-        private const val MOVEMENT_TIMEOUT_MS = 10_000L
+        private const val MOVEMENT_THRESHOLD_MS = 15_000L // 15 seconds
+        private const val DISTANCE_THRESHOLD_M = 0.5f // 0.5 meters
+        private const val MIN_STEP_THRESHOLD = 2L // Minimum steps for fallback
+        private const val SENSOR_TIMEOUT_MS = 5_000L // 5 seconds
+        private const val GPS_TIMEOUT_MS = 5_000L // 5 seconds
+        private const val FALLBACK_TIMEOUT_MS = 3_000L // 3 seconds for fallback
     }
 
     override fun onCreate() {
@@ -73,165 +77,294 @@ class WorkoutTrackingService : Service() {
         Log.d("WorkoutTrackingService", "onCreate: Initializing service")
 
         // Notification Channel Setup
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                "Workout Tracking",
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Silent channel for workout tracking"
-                setSound(null, null)
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
-
-        // Start foreground service immediately to avoid ForegroundServiceDidNotStartInTimeException
-        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("FitGlide")
-            .setContentText("Tracking your workout")
-            .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setSilent(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
-
-        startForeground(NOTIFICATION_ID, notification)
-        isServiceRunning = true
-        Log.d("WorkoutTrackingService", "Foreground service started")
-
-        // Initialize dependencies
-        healthConnect = HealthConnectManager(this)
         try {
-            strapiRepository = MainActivity.commonViewModel.getStrapiRepository()
-            commonViewModel = MainActivity.commonViewModel
-            Log.d("WorkoutTrackingService", "CommonViewModel accessed via MainActivity")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    CHANNEL_ID,
+                    "Workout Tracking",
+                    NotificationManager.IMPORTANCE_LOW
+                ).apply {
+                    description = "Silent channel for workout tracking"
+                    setSound(null, null)
+                }
+                notificationManager.createNotificationChannel(channel)
+                Log.d("WorkoutTrackingService", "Notification channel created: $CHANNEL_ID")
+            }
+
+            // Start foreground service
+            val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+                .setContentTitle("FitGlide")
+                .setContentText("Tracking your workout")
+                .setSmallIcon(R.drawable.ic_launcher_foreground)
+                .setSilent(true)
+                .setPriority(NotificationCompat.PRIORITY_LOW)
+                .build()
+
+            startForeground(NOTIFICATION_ID, notification)
+            isServiceRunning = true
+            Log.d("WorkoutTrackingService", "Foreground service started with NOTIFICATION_ID=$NOTIFICATION_ID")
         } catch (e: Exception) {
-            Log.e("WorkoutTrackingService", "Error accessing CommonViewModel: ${e.message}", e)
-            // Continue running the service, but commonViewModel will be null
+            Log.e("WorkoutTrackingService", "Failed to start foreground service: ${e.message}", e)
+            postUiMessage("Failed to start tracking service")
+            stopSelf()
+            return
         }
 
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
-        stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+        // Initialize dependencies in background
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                // Initialize Retrofit for StrapiApi
+                val retrofit = Retrofit.Builder()
+                    .baseUrl("https://admin.fitglide.in/api/")
+                    .addConverterFactory(GsonConverterFactory.create())
+                    .build()
+                val strapiApi = retrofit.create(StrapiApi::class.java)
 
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
-            .setMinUpdateIntervalMillis(500)
-            .setMaxUpdateDelayMillis(2000)
-            .setWaitForAccurateLocation(true)
-            .build()
+                // Initialize AuthRepository
+                val googleAuthManager = GoogleAuthManager(this@WorkoutTrackingService)
+                authRepository = AuthRepository(googleAuthManager, this@WorkoutTrackingService)
+                Log.d("WorkoutTrackingService", "AuthRepository initialized")
 
-        fusedLocationClient.lastLocation.addOnSuccessListener { location ->
-            if (location != null) {
-                lastLocation = location
-                Log.d("WorkoutTrackingService", "Initial GPS location: lat=${location.latitude}, lng=${location.longitude}")
+                // Initialize StrapiRepository
+                strapiRepository = StrapiRepository(strapiApi, authRepository!!)
+                Log.d("WorkoutTrackingService", "StrapiRepository initialized")
+
+                // Initialize HealthConnectManager
+                healthConnect = HealthConnectManager(this@WorkoutTrackingService)
+                Log.d("WorkoutTrackingService", "HealthConnectManager initialized")
+
+                // Initialize CommonViewModel
+                commonViewModel = getCommonViewModel()
+                if (healthConnect == null || strapiRepository == null || authRepository == null || commonViewModel == null) {
+                    Log.e("WorkoutTrackingService", "Failed to initialize dependencies: healthConnect=$healthConnect, strapiRepository=$strapiRepository, authRepository=$authRepository, commonViewModel=$commonViewModel")
+                    postUiMessage("Service initialization failed")
+                    stopSelf()
+                    return@launch
+                }
+                Log.d("WorkoutTrackingService", "Dependencies initialized successfully")
+            } catch (e: Exception) {
+                Log.e("WorkoutTrackingService", "Dependency initialization error: ${e.message}", e)
+                postUiMessage("Service initialization error")
+                stopSelf()
             }
         }
 
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(locationResult: LocationResult) {
-                for (location in locationResult.locations) {
-                    val newLocation = location
-                    val distanceMoved = lastLocation?.distanceTo(newLocation) ?: 0f
-                    if (distanceMoved > 0.5f) {
-                        totalDistance += distanceMoved
+        try {
+            fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+            sensorManager = getSystemService(Context.SENSOR_SERVICE) as SensorManager
+            stepSensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)
+
+            // Initialize location
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                fusedLocationClient?.lastLocation?.addOnSuccessListener { location ->
+                    if (location != null) {
+                        lastLocation = location
+                        lastMovedTime = System.currentTimeMillis()
+                        hasMovedRecently = true
+                        Log.d("WorkoutTrackingService", "Initial GPS location: lat=${location.latitude}, lng=${location.longitude}")
+                    } else {
+                        Log.w("WorkoutTrackingService", "Initial location unavailable, requesting updates")
+                        requestLocationUpdates()
+                    }
+                }?.addOnFailureListener { e ->
+                    Log.e("WorkoutTrackingService", "Failed to get initial location: ${e.message}")
+                    requestLocationUpdates()
+                }
+            } else {
+                Log.w("WorkoutTrackingService", "ACCESS_FINE_LOCATION permission missing")
+                postUiMessage("Please grant location permission")
+                stopSelf()
+                return
+            }
+
+            // Location callback
+            locationCallback = object : LocationCallback() {
+                override fun onLocationResult(locationResult: LocationResult) {
+                    for (location in locationResult.locations) {
+                        val newLocation = location
+                        val distanceMoved = lastLocation?.distanceTo(newLocation) ?: 0f
                         lastLocation = newLocation
                         lastMovedTime = System.currentTimeMillis()
-                        if (!isTracking) {
-                            movementTime += 1000L
-                            if (movementTime >= MOVEMENT_THRESHOLD_MS && monitoredSteps > 0) {
-                                commonViewModel?.updateTrackedSteps(monitoredSteps.toFloat())
+                        hasMovedRecently = distanceMoved > DISTANCE_THRESHOLD_M
+                        Log.d("WorkoutTrackingService", "Location update: distance=$distanceMoved m, lat=${newLocation.latitude}, lng=${newLocation.longitude}, hasMovedRecently=$hasMovedRecently")
+                    }
+                }
+            }
+
+            // Step sensor listener
+            stepListener = object : SensorEventListener {
+                override fun onSensorChanged(event: SensorEvent?) {
+                    event?.let {
+                        lastStepTime = System.currentTimeMillis()
+                        val currentSteps = it.values[0].toLong()
+                        if (initialStepCount == -1L) {
+                            if (isTracking) {
+                                initialStepCount = currentSteps
+                                Log.d("WorkoutTrackingService", "Initialized initialStepCount: $initialStepCount")
+                            } else {
+                                Log.d("WorkoutTrackingService", "Step sensor active, awaiting session start")
+                                return@let
                             }
-                        } else {
-                            totalSteps = monitoredSteps
-                            commonViewModel?.updateTrackedSteps(totalSteps.toFloat())
                         }
-                    } else if (!isTracking) {
-                        movementTime = 0L
-                    }
-                }
-            }
-        }
-
-        stepListener = object : SensorEventListener {
-            override fun onSensorChanged(event: SensorEvent?) {
-                event?.let {
-                    val currentSteps = it.values[0].toLong()
-                    if (initialStepCount == -1L) {
-                        initialStepCount = currentSteps
-                    } else {
                         monitoredSteps = currentSteps - initialStepCount
-                        if (isTracking && (System.currentTimeMillis() - lastMovedTime) < MOVEMENT_TIMEOUT_MS) {
-                            totalSteps = monitoredSteps
-                            commonViewModel?.updateTrackedSteps(totalSteps.toFloat())
-                        } else if (!isTracking) {
-                            commonViewModel?.updateTrackedSteps(monitoredSteps.toFloat())
-                        } else {
-                            // Case: isTracking is true but time since last movement exceeds MOVEMENT_TIMEOUT_MS
-                            Log.d("WorkoutTrackingService", "Tracking timeout reached, resetting tracking state")
-                            isTracking = false
-                            totalSteps = monitoredSteps
-                            commonViewModel?.updateTrackedSteps(totalSteps.toFloat())
+                        if (monitoredSteps < 0) {
+                            Log.w("WorkoutTrackingService", "Negative steps detected, adjusting")
+                            monitoredSteps = 0L
+                            initialStepCount = currentSteps
+                        }
+                        if (isTracking && monitoredSteps > totalSteps) {
+                            // Count steps if GPS confirms movement or after fallback timeout
+                            if (hasMovedRecently || (System.currentTimeMillis() - lastStepTime > FALLBACK_TIMEOUT_MS && monitoredSteps >= MIN_STEP_THRESHOLD)) {
+                                totalSteps = monitoredSteps
+                                commonViewModel?.updateTrackedSteps(totalSteps.toFloat())
+                                sharedPreferences.edit().putFloat("trackedSteps", totalSteps.toFloat()).apply()
+                                Log.d("WorkoutTrackingService", "Steps counted: totalSteps=$totalSteps, monitoredSteps=$monitoredSteps, hasMovedRecently=$hasMovedRecently")
+                            } else {
+                                Log.d("WorkoutTrackingService", "Steps queued: monitoredSteps=$monitoredSteps, hasMovedRecently=$hasMovedRecently, timeSinceMove=${System.currentTimeMillis() - lastMovedTime}")
+                            }
                         }
                     }
                 }
+
+                override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {
+                    Log.d("WorkoutTrackingService", "Sensor accuracy changed: sensor=$sensor, accuracy=$accuracy")
+                }
             }
 
-            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-        }
+            // Initialize sensor and location
+            registerStepSensor()
+            requestLocationUpdates()
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED) {
-            stepSensor?.let { sensorManager.registerListener(stepListener, it, SensorManager.SENSOR_DELAY_NORMAL) }
-            Log.d("WorkoutTrackingService", "Step sensor registered")
-        } else {
-            Log.w("WorkoutTrackingService", "ACTIVITY_RECOGNITION permission missing")
-            commonViewModel?.postUiMessage("Please grant activity recognition permission")
+            // Monitor sensor and GPS timeouts
+            monitorTimeouts()
+        } catch (e: Exception) {
+            Log.e("WorkoutTrackingService", "Initialization error: ${e.message}", e)
+            postUiMessage("Failed to initialize tracking")
+            stopSelf()
         }
-
-        requestLocationUpdates()
     }
 
-    private fun requestLocationUpdates() {
-        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000)
-            .setMinUpdateIntervalMillis(500)
-            .setMaxUpdateDelayMillis(2000)
-            .setWaitForAccurateLocation(true)
-            .build()
+    private fun monitorTimeouts() {
+        CoroutineScope(Dispatchers.Default).launch {
+            while (isServiceRunning) {
+                delay(5_000L) // Check every 5 seconds
+                if (isTracking) {
+                    val currentTime = System.currentTimeMillis()
+                    // Reinitialize sensor if no step events, preserve session
+                    if (currentTime - lastStepTime > SENSOR_TIMEOUT_MS) {
+                        Log.w("WorkoutTrackingService", "No step events for $SENSOR_TIMEOUT_MS ms, reinitializing sensor")
+                        stepListener?.let { sensorManager.unregisterListener(it) }
+                        registerStepSensor()
+                    }
+                    // Retry GPS if no movement
+                    if (currentTime - lastMovedTime > GPS_TIMEOUT_MS && !hasMovedRecently) {
+                        Log.w("WorkoutTrackingService", "No GPS movement for $GPS_TIMEOUT_MS ms, retrying location updates")
+                        locationCallback?.let { fusedLocationClient?.removeLocationUpdates(it) }
+                        requestLocationUpdates(true)
+                    }
+                }
+            }
+        }
+    }
 
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, mainLooper)
-            Log.d("WorkoutTrackingService", "Location updates requested")
-        } else {
-            Log.w("WorkoutTrackingService", "ACCESS_FINE_LOCATION permission missing")
-            commonViewModel?.postUiMessage("Please grant location permission")
+    private fun requestLocationUpdates(useHighAccuracy: Boolean = false) {
+        try {
+            val priority = if (useHighAccuracy) Priority.PRIORITY_HIGH_ACCURACY else Priority.PRIORITY_BALANCED_POWER_ACCURACY
+            val locationRequest = LocationRequest.Builder(priority, 500)
+                .setMinUpdateIntervalMillis(100)
+                .setMaxUpdateDelayMillis(1000)
+                .setWaitForAccurateLocation(true)
+                .build()
+
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+                locationCallback?.let {
+                    fusedLocationClient?.requestLocationUpdates(locationRequest, it, mainLooper)
+                    Log.d("WorkoutTrackingService", "Location updates requested with priority=$priority")
+                } ?: Log.e("WorkoutTrackingService", "LocationCallback is null")
+            } else {
+                Log.w("WorkoutTrackingService", "ACCESS_FINE_LOCATION permission missing")
+                postUiMessage("Please grant location permission")
+                stopSelf()
+            }
+        } catch (e: Exception) {
+            Log.e("WorkoutTrackingService", "Failed to request location updates: ${e.message}", e)
+            postUiMessage("Location tracking unavailable")
+        }
+    }
+
+    private fun registerStepSensor() {
+        try {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACTIVITY_RECOGNITION) == PackageManager.PERMISSION_GRANTED) {
+                stepSensor?.let {
+                    sensorManager.registerListener(stepListener, it, SensorManager.SENSOR_DELAY_FASTEST)
+                    lastStepTime = System.currentTimeMillis()
+                    Log.d("WorkoutTrackingService", "Step sensor registered with SENSOR_DELAY_FASTEST")
+                } ?: run {
+                    Log.w("WorkoutTrackingService", "Step sensor not available")
+                    postUiMessage("Step sensor unavailable")
+                    stopSelf()
+                }
+            } else {
+                Log.w("WorkoutTrackingService", "ACTIVITY_RECOGNITION permission missing")
+                postUiMessage("Please grant activity recognition permission")
+                stopSelf()
+            }
+        } catch (e: Exception) {
+            Log.e("WorkoutTrackingService", "Failed to register step sensor: ${e.message}", e)
+            postUiMessage("Step sensor unavailable")
+            stopSelf()
         }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d("WorkoutTrackingService", "onStartCommand: intent=$intent, flags=$flags, startId=$startId")
         userId = intent?.getStringExtra("userId") ?: "1"
         workoutType = intent?.getStringExtra("workoutType") ?: "Walking"
         token = intent?.getStringExtra("token") ?: ""
         val manualStart = intent?.getBooleanExtra("manualStart", false) ?: false
+        val resetSteps = intent?.getBooleanExtra("resetSteps", false) ?: false
 
-        Log.d("WorkoutTrackingService", "onStartCommand: userId=$userId, workoutType=$workoutType, manualStart=$manualStart, token=$token")
+        Log.d("WorkoutTrackingService", "onStartCommand: userId=$userId, workoutType=$workoutType, manualStart=$manualStart, resetSteps=$resetSteps")
 
         if (!hasRequiredPermissions()) {
             Log.e("WorkoutTrackingService", "Missing required permissions")
-            commonViewModel?.postUiMessage("Missing permissions for tracking")
+            postUiMessage("Missing permissions for tracking")
             stopSelf()
             return START_NOT_STICKY
         }
 
-        val googleApiAvailability = GoogleApiAvailability.getInstance()
-        val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this)
-        if (resultCode != ConnectionResult.SUCCESS) {
-            Log.e("WorkoutTrackingService", "Google Play Services unavailable: $resultCode")
-            commonViewModel?.postUiMessage("Google Play Services unavailable")
-            stopSelf()
-            return START_NOT_STICKY
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val googleApiAvailability = GoogleApiAvailability.getInstance()
+                val resultCode = googleApiAvailability.isGooglePlayServicesAvailable(this@WorkoutTrackingService)
+                if (resultCode != ConnectionResult.SUCCESS) {
+                    Log.e("WorkoutTrackingService", "Google Play Services unavailable: $resultCode")
+                    postUiMessage("Google Play Services unavailable")
+                    stopSelf()
+                    return@launch
+                }
+                Log.d("WorkoutTrackingService", "Google Play Services available")
+            } catch (e: Exception) {
+                Log.e("WorkoutTrackingService", "Google Play Services check failed: ${e.message}", e)
+                postUiMessage("Google Play Services error")
+                stopSelf()
+            }
+        }
+
+        if (resetSteps) {
+            resetSteps()
+            return START_STICKY
         }
 
         if (manualStart && !isTracking) {
             startTracking()
-            startPeriodicSync()
+            // Restore steps if tracking was interrupted
+            totalSteps = sharedPreferences.getFloat("trackedSteps", 0f).toLong()
+            isTracking = sharedPreferences.getBoolean("isTracking", false)
+            commonViewModel?.updateTrackedSteps(totalSteps.toFloat())
+            Log.d("WorkoutTrackingService", "Restored totalSteps=$totalSteps, isTracking=$isTracking")
+        } else if (manualStart && isTracking) {
+            Log.d("WorkoutTrackingService", "Already tracking, ignoring manualStart")
         }
 
         return START_STICKY
@@ -247,54 +380,46 @@ class WorkoutTrackingService : Service() {
 
     private fun startTracking() {
         isTracking = true
-        startTime = Instant.now()
-        totalDistance = 0f
-        totalSteps = monitoredSteps
-        lastStepCount = monitoredSteps
-        Log.d("WorkoutTrackingService", "Tracking started with initial steps: $totalSteps")
-        commonViewModel?.updateTrackedSteps(totalSteps.toFloat())
+        initialStepCount = -1L // Reset to ensure fresh start
+        monitoredSteps = 0L
+        totalSteps = 0L
+        lastLocation = null
+        hasMovedRecently = false
+        lastStepTime = System.currentTimeMillis()
+        commonViewModel?.updateTrackedSteps(0f)
+        sharedPreferences.edit()
+            .putBoolean("isTracking", true)
+            .putFloat("trackedSteps", 0f)
+            .apply()
+        Log.d("WorkoutTrackingService", "Tracking started")
     }
 
-    private fun startPeriodicSync() {
-        CoroutineScope(Dispatchers.IO).launch {
-            while (isTracking) {
-                delay(SYNC_INTERVAL_MS)
-                val stepsToSync = totalSteps
-                val distanceMiles = totalDistance / 1609.34f // Meters to miles
-                Log.d("WorkoutTrackingService", "Periodic sync: $stepsToSync steps, $distanceMiles miles")
+    private fun resetSteps() {
+        initialStepCount = -1L
+        monitoredSteps = 0L
+        totalSteps = 0L
+        hasMovedRecently = false
+        isTracking = false
+        commonViewModel?.updateTrackedSteps(0f)
+        sharedPreferences.edit()
+            .putFloat("trackedSteps", 0f)
+            .putBoolean("isTracking", false)
+            .apply()
+        Log.d("WorkoutTrackingService", "Steps reset to 0")
+    }
 
-                if (token.isNotBlank()) {
-                    try {
-                        val logRequest = StrapiApi.WorkoutLogRequest(
-                            logId = "workout_${userId}_${System.currentTimeMillis()}",
-                            workout = null,
-                            startTime = startTime?.let { DateTimeFormatter.ISO_INSTANT.format(it) } ?: LocalDateTime.now().toString(),
-                            endTime = LocalDateTime.now().format(DateTimeFormatter.ISO_DATE_TIME),
-                            distance = distanceMiles,
-                            totalTime = ((System.currentTimeMillis() - (startTime?.toEpochMilli() ?: System.currentTimeMillis())) / 60000f),
-                            calories = (stepsToSync * 0.04f).toFloat(),
-                            heartRateAverage = 0L,
-                            heartRateMaximum = 0L,
-                            heartRateMinimum = 0L,
-                            route = emptyList(),
-                            completed = false,
-                            notes = "Auto-tracked $workoutType",
-                            usersPermissionsUser = StrapiApi.UserId(userId)
-                        )
-                        val response = strapiRepository.syncWorkoutLog(logRequest, "Bearer $token")
-                        if (response.isSuccessful) {
-                            Log.d("WorkoutTrackingService", "Synced to Strapi: steps=$stepsToSync, distance=$distanceMiles")
-                        } else {
-                            Log.e("WorkoutTrackingService", "Strapi sync failed: ${response.code()} - ${response.errorBody()?.string()}")
-                            commonViewModel?.postUiMessage("Failed to sync workout data")
-                        }
-                    } catch (e: Exception) {
-                        Log.e("WorkoutTrackingService", "Strapi sync error: ${e.message}", e)
-                        commonViewModel?.postUiMessage("Error syncing workout: ${e.message}")
-                    }
-                }
-                commonViewModel?.updateTrackedSteps(stepsToSync.toFloat())
-            }
+    private fun getCommonViewModel(): CommonViewModel? {
+        return try {
+            MainActivity.commonViewModel
+        } catch (e: Exception) {
+            Log.e("WorkoutTrackingService", "Failed to get CommonViewModel: ${e.message}")
+            null
+        }
+    }
+
+    private fun postUiMessage(message: String) {
+        CoroutineScope(Dispatchers.Main).launch {
+            commonViewModel?.postUiMessage(message)
         }
     }
 
@@ -302,14 +427,24 @@ class WorkoutTrackingService : Service() {
 
     override fun onDestroy() {
         super.onDestroy()
-        fusedLocationClient.removeLocationUpdates(locationCallback)
-        stepListener?.let {
-            sensorManager.unregisterListener(it)
-            Log.d("WorkoutTrackingService", "Step sensor unregistered")
+        try {
+            locationCallback?.let {
+                fusedLocationClient?.removeLocationUpdates(it)
+                Log.d("WorkoutTrackingService", "Location updates removed")
+            }
+            stepListener?.let {
+                sensorManager.unregisterListener(it)
+                Log.d("WorkoutTrackingService", "Step sensor unregistered")
+            }
+            isServiceRunning = false
+            // Persist steps and tracking state
+            sharedPreferences.edit()
+                .putFloat("trackedSteps", totalSteps.toFloat())
+                .putBoolean("isTracking", isTracking)
+                .apply()
+            Log.d("WorkoutTrackingService", "Service destroyed, steps persisted: totalSteps=$totalSteps, isTracking=$isTracking")
+        } catch (e: Exception) {
+            Log.e("WorkoutTrackingService", "Error during onDestroy: ${e.message}", e)
         }
-        isServiceRunning = false
-        isTracking = false
-        commonViewModel?.updateTrackedSteps(0f)
-        Log.d("WorkoutTrackingService", "Service destroyed")
     }
 }

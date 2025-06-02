@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.WRITE_STEPS" />
@@ -30,15 +31,31 @@
     <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
     <uses-permission android:name="android.permission.health.READ_HYDRATION" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" tools:node="remove" />
 
     <application
-        android:name=".FitGlideApplication"
         android:allowBackup="true"
-        android:icon="@mipmap/ic_launcher_round"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher_1"
         android:label="@string/app_name"
-        android:roundIcon="@mipmap/ic_launcher_round"
+        android:roundIcon="@mipmap/ic_launcher_1"
         android:supportsRtl="true"
-        android:theme="@style/Theme.FitGlide">
+        android:theme="@style/Theme.FitGlide"
+        tools:targetApi="31">
+        <!-- Google Maps API Key -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="AIzaSyDcOZE7AQFiVswBu0PVBZ-CjdFVtcSqucQ" />
+
+        <!-- Attribution Tags for Health Connect and Location -->
+        <meta-data
+            android:name="android.health.connect.ATTRIBUTION_TAG"
+            android:value="FitGlideWorkoutTracking" />
+        <meta-data
+            android:name="android.location.ATTRIBUTION_TAG"
+            android:value="FitGlideLocationTracking" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

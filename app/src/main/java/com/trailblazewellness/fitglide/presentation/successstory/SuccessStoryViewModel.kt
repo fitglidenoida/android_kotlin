@@ -1,5 +1,7 @@
 package com.trailblazewellness.fitglide.presentation.successstory
 
+import android.content.Context
+import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,6 +15,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
+import java.io.FileOutputStream
 
 data class WeightLossStory(
     val storyId: String,
@@ -20,17 +24,20 @@ data class WeightLossStory(
     val nowWeight: Float,
     val weightLost: Float,
     val storyText: String,
-    val userName: String, // First name from users_permissions_user
-    val userId: String, // ID of the user who created the story
+    val userName: String,
+    val userId: String,
     val likes: Int,
-    val visibility: String // "Everyone" or "Friends"
+    val visibility: String,
+    val beforeImage: String? = null, // URL from Strapi
+    val afterImage: String? = null
 )
 
 class SuccessStoryViewModel(
     private val strapiRepository: StrapiRepository,
     private val authRepository: AuthRepository,
     private val currentUserId: String,
-    private val authToken: String
+    private val authToken: String,
+    private val context: Context // Add context for content resolver
 ) : ViewModel() {
 
     private val _stories = MutableStateFlow<List<WeightLossStory>>(emptyList())
@@ -44,6 +51,77 @@ class SuccessStoryViewModel(
         fetchWeightHistory()
     }
 
+    fun addStory(
+        userName: String,
+        weightLost: String,
+        timeTaken: String,
+        beforeImageUri: String?,
+        afterImageUri: String?,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val weightLostValue = weightLost.replace("[^0-9.]".toRegex(), "").toFloatOrNull() ?: 0f
+                val nowWeight = 70f // TODO: Fetch from strapiRepository.getHealthVitals
+                val thenWeight = nowWeight + weightLostValue
+                val storyText = "$userName lost $weightLost in $timeTaken."
+
+                var beforeImageId: String? = null
+                var afterImageId: String? = null
+
+                if (beforeImageUri != null) {
+                    val beforeFile = uriToFile(Uri.parse(beforeImageUri))
+                    val response = strapiRepository.uploadFile(beforeFile, authToken)
+                    if (response.isSuccessful) {
+                        beforeImageId = response.body()?.firstOrNull()?.id?.toString()
+                    } else {
+                        throw Exception("Before image upload failed: ${response.errorBody()?.string()}")
+                    }
+                }
+                if (afterImageUri != null) {
+                    val afterFile = uriToFile(Uri.parse(afterImageUri))
+                    val response = strapiRepository.uploadFile(afterFile, authToken)
+                    if (response.isSuccessful) {
+                        afterImageId = response.body()?.firstOrNull()?.id?.toString()
+                    } else {
+                        throw Exception("After image upload failed: ${response.errorBody()?.string()}")
+                    }
+                }
+
+                submitStory(
+                    thenWeight = thenWeight,
+                    nowWeight = nowWeight,
+                    weightLost = weightLostValue,
+                    storyText = storyText,
+                    beforeImageId = beforeImageId,
+                    afterImageId = afterImageId,
+                    onSuccess = {
+                        fetchStories()
+                        onSuccess()
+                    },
+                    onError = onError
+                )
+            } catch (e: Exception) {
+                val errorMsg = "Error creating story: ${e.message}"
+                Log.e("SuccessStoryViewModel", errorMsg)
+                onError(errorMsg)
+            }
+        }
+    }
+
+    private suspend fun uriToFile(uri: Uri): File {
+        return withContext(Dispatchers.IO) {
+            val file = File.createTempFile("image", ".jpg", context.cacheDir)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                FileOutputStream(file).use { output ->
+                    input.copyTo(output)
+                }
+            } ?: throw Exception("Failed to read image from URI")
+            file
+        }
+    }
+
     fun fetchStories() {
         viewModelScope.launch {
             try {
@@ -55,14 +133,13 @@ class SuccessStoryViewModel(
                 if (response?.isSuccessful == true) {
                     val storyEntries = response.body()?.data ?: emptyList()
                     val mappedStories = storyEntries.mapNotNull { entry ->
-                        // Only include stories with non-empty storyText
                         if (entry.storyText.isNullOrEmpty()) return@mapNotNull null
                         val userName = entry.usersPermissionsUser?.firstName ?: return@mapNotNull null
                         val userId = entry.usersPermissionsUser?.id?.toString() ?: return@mapNotNull null
                         val visibility = entry.visibility ?: "Everyone"
-                        // Apply visibility logic
+                        val beforeImage = entry.beforeImage?.attributes?.url?.let { "https://admin.fitglide.in$it" }
+                        val afterImage = entry.afterImage?.attributes?.url?.let { "https://admin.fitglide.in$it" }
                         if (visibility == "Everyone" || userId == currentUserId) {
-                            // Show stories with visibility "Everyone" or stories created by the current user
                             WeightLossStory(
                                 storyId = entry.storyId ?: "unknown_${System.currentTimeMillis()}",
                                 thenWeight = entry.thenWeight?.toFloat() ?: 0f,
@@ -72,10 +149,11 @@ class SuccessStoryViewModel(
                                 userName = userName,
                                 userId = userId,
                                 likes = entry.likes ?: 0,
-                                visibility = visibility
+                                visibility = visibility,
+                                beforeImage = beforeImage,
+                                afterImage = afterImage
                             )
                         } else if (visibility == "Friends") {
-                            // Check if the current user is in the creator's friends list
                             val isFriend = checkIfFriend(currentUserId, userId)
                             if (isFriend) {
                                 WeightLossStory(
@@ -87,7 +165,9 @@ class SuccessStoryViewModel(
                                     userName = userName,
                                     userId = userId,
                                     likes = entry.likes ?: 0,
-                                    visibility = visibility
+                                    visibility = visibility,
+                                    beforeImage = beforeImage,
+                                    afterImage = afterImage
                                 )
                             } else {
                                 null
@@ -112,7 +192,6 @@ class SuccessStoryViewModel(
             try {
                 val response = withTimeoutOrNull(10000L) {
                     withContext(Dispatchers.IO) {
-                        // Fetch weight history for the current user only
                         strapiRepository.getWeightLossStoriesForUser(currentUserId, authToken)
                     }
                 }
@@ -121,6 +200,8 @@ class SuccessStoryViewModel(
                     val mappedHistory = entries.mapNotNull { entry ->
                         val userName = entry.usersPermissionsUser?.firstName ?: return@mapNotNull null
                         val userId = entry.usersPermissionsUser?.id?.toString() ?: return@mapNotNull null
+                        val beforeImage = entry.beforeImage?.attributes?.url?.let { "https://admin.fitglide.in$it" }
+                        val afterImage = entry.afterImage?.attributes?.url?.let { "https://admin.fitglide.in$it" }
                         WeightLossStory(
                             storyId = entry.storyId ?: "unknown_${System.currentTimeMillis()}",
                             thenWeight = entry.thenWeight?.toFloat() ?: 0f,
@@ -130,9 +211,11 @@ class SuccessStoryViewModel(
                             userName = userName,
                             userId = userId,
                             likes = entry.likes ?: 0,
-                            visibility = entry.visibility ?: "Everyone"
+                            visibility = entry.visibility ?: "Everyone",
+                            beforeImage = beforeImage,
+                            afterImage = afterImage
                         )
-                    }.sortedByDescending { it.storyId } // Sort by creation date (newest first)
+                    }.sortedByDescending { it.storyId }
                     _weightHistory.value = mappedHistory
                     Log.d("SuccessStoryViewModel", "Fetched ${mappedHistory.size} weight history entries for user $currentUserId")
                 } else {
@@ -158,9 +241,9 @@ class SuccessStoryViewModel(
                     thenWeight = thenWeight.toDouble(),
                     nowWeight = nowWeight.toDouble(),
                     weightLost = weightLost.toDouble(),
-                    storyText = "", // Empty for weight logs
+                    storyText = "",
                     usersPermissionsUser = StrapiApi.UserId(currentUserId),
-                    visibility = "Everyone" // Default visibility for weight logs
+                    visibility = "Everyone"
                 )
                 val response = withTimeoutOrNull(10000L) {
                     withContext(Dispatchers.IO) {
@@ -169,7 +252,7 @@ class SuccessStoryViewModel(
                 }
                 if (response?.isSuccessful == true) {
                     Log.d("SuccessStoryViewModel", "Successfully submitted weight update for user $currentUserId")
-                    fetchWeightHistory() // Refresh weight history
+                    fetchWeightHistory()
                     onSuccess()
                 } else {
                     val errorMsg = "Failed to submit weight update: ${response?.code()} - ${response?.errorBody()?.string()}"
@@ -189,6 +272,8 @@ class SuccessStoryViewModel(
         nowWeight: Float,
         weightLost: Float,
         storyText: String,
+        beforeImageId: String?,
+        afterImageId: String?,
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
@@ -201,7 +286,9 @@ class SuccessStoryViewModel(
                     weightLost = weightLost.toDouble(),
                     storyText = storyText,
                     usersPermissionsUser = StrapiApi.UserId(currentUserId),
-                    visibility = "Everyone" // Default visibility for stories
+                    visibility = "Everyone",
+                    beforeImage = beforeImageId?.let { StrapiApi.MediaId(it) },
+                    afterImage = afterImageId?.let { StrapiApi.MediaId(it) }
                 )
                 val response = withTimeoutOrNull(10000L) {
                     withContext(Dispatchers.IO) {
@@ -210,7 +297,6 @@ class SuccessStoryViewModel(
                 }
                 if (response?.isSuccessful == true) {
                     Log.d("SuccessStoryViewModel", "Successfully submitted story for user $currentUserId")
-                    fetchStories() // Refresh the story list
                     onSuccess()
                 } else {
                     val errorMsg = "Failed to submit story: ${response?.code()} - ${response?.errorBody()?.string()}"
@@ -240,7 +326,7 @@ class SuccessStoryViewModel(
                 }
                 if (response?.isSuccessful == true) {
                     Log.d("SuccessStoryViewModel", "Successfully updated visibility for story $storyId to $visibility")
-                    fetchStories() // Refresh the story list
+                    fetchStories()
                     onSuccess()
                 } else {
                     val errorMsg = "Failed to update visibility: ${response?.code()} - ${response?.errorBody()?.string()}"
@@ -255,10 +341,8 @@ class SuccessStoryViewModel(
         }
     }
 
-    // Function to check if the current user is a friend of the story creator
     private suspend fun checkIfFriend(currentUserId: String, creatorUserId: String): Boolean {
         try {
-            // Fetch the creator's friends list using StrapiRepository
             val response = withTimeoutOrNull(10000L) {
                 withContext(Dispatchers.IO) {
                     val filters = mapOf(
@@ -270,7 +354,6 @@ class SuccessStoryViewModel(
             }
             if (response?.isSuccessful == true) {
                 val friendsList = response.body()?.data ?: emptyList()
-                // Check if the current user is in the creator's friends list
                 val isFriend = friendsList.any { friend ->
                     friend.receiver?.data?.id == currentUserId
                 }
@@ -278,11 +361,11 @@ class SuccessStoryViewModel(
                 return isFriend
             } else {
                 Log.e("SuccessStoryViewModel", "Failed to fetch friends list: ${response?.code()} - ${response?.errorBody()?.string()}")
-                return false // Default to false if we can't fetch the friends list
+                return false
             }
         } catch (e: Exception) {
             Log.e("SuccessStoryViewModel", "Error checking if friend: ${e.message}", e)
-            return false // Default to false on error
+            return false
         }
     }
 }

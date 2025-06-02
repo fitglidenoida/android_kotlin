@@ -356,6 +356,19 @@ class HealthConnectManager(private val context: Context) {
         return avg
     }
 
+    suspend fun readHeartRateStats(startTime: Instant, endTime: Instant): HeartRateStats? {
+        val records = readRecords(HeartRateRecord::class, startTime, endTime)
+        val heartRates = records.flatMap { it.samples }.map { it.beatsPerMinute }
+        return if (heartRates.isNotEmpty()) {
+            HeartRateStats(
+                average = heartRates.average().toLong(),
+                maximum = heartRates.maxOrNull()?.toLong() ?: 0L,
+                minimum = heartRates.minOrNull()?.toLong() ?: 0L
+            )
+        } else {
+            null
+        }
+    }
 
     suspend fun readHRV(date: LocalDate): HRVData? {
         val start = date.atStartOfDay(ZoneId.systemDefault()).toInstant()
@@ -404,6 +417,8 @@ data class SleepData(
     val start: LocalDateTime,
     val end: LocalDateTime
 )
+
+data class HeartRateStats(val average: Long, val maximum: Long, val minimum: Long)
 
 data class WorkoutData(
     val distance: Double?,

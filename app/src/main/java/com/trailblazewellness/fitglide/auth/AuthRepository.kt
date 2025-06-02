@@ -108,7 +108,7 @@ class AuthRepository @Inject constructor(
 
                     val updateResponse = strapiApi.updateUserProfile(
                         userId.toString(),
-                        StrapiApi.UserProfileBody(updateRequest),
+                        updateRequest, // Use UserProfileRequest directly, no UserProfileBody
                         "Bearer $jwt"
                     )
                     if (updateResponse.isSuccessful) {
@@ -129,7 +129,6 @@ class AuthRepository @Inject constructor(
         Log.d("AuthRepository", "Already logged in: ${_authStateFlow.value}")
         return true
     }
-
 
     suspend fun loginWithCredentials(email: String, password: String) {
         if (email.isEmpty() || password.isEmpty()) {
@@ -186,7 +185,6 @@ class AuthRepository @Inject constructor(
         Log.d("AuthRepository", "Updated userName to $newName, new authState: ${_authStateFlow.value}")
     }
 }
-
 
 interface AuthApi {
     @POST("google-login")

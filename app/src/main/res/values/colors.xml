@@ -4,6 +4,9 @@
     <color name="green_500">#FF34A853</color> <!-- Secondary -->
     <color name="orange_500">#FFFBBC05</color> <!-- Tertiary -->
     <color name="light_gray">#FFF5F5F5</color> <!-- Background (light) -->
-    <color name="dark_gray">#FF121212</color> <!-- Background (dark) and onBackground (light) -->
-    <color name="dark_surface">#FF303030</color> <!-- Surface (dark) -->
+    <color name="dark_gray">#FF121212</color> <!-- Background (dark) -->
+    <color name="dark_surface">#FF1E1E1E</color> <!-- Surface (dark) -->
+    <color name="light_text">#FFE0E0E0</color> <!-- onBackground/onSurface (dark) -->
+    <color name="dark_text">#FF212121</color> <!-- onBackground/onSurface (light) -->
+    <color name="ic_launcher_background">#FFFFFF</color>
 </resources>

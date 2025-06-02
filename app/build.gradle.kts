@@ -7,12 +7,20 @@ plugins {
 android {
     compileSdk = 35
 
+    val versionMajor = 4
+    val versionMinor = 0
+    val versionPatch = 1
+    val versionBuild = 0
+
+    val computedVersionCode = versionMajor * 1000000 + versionMinor * 10000 + versionPatch * 100 + versionBuild
+    val computedVersionName = "$versionMajor.$versionMinor.$versionPatch.$versionBuild"
+
     defaultConfig {
         namespace = "com.trailblazewellness.fitglide"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = computedVersionCode
+        versionName = computedVersionName
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -21,7 +29,7 @@ android {
     }
 
     composeOptions {
-        kotlinCompilerExtensionVersion = "1.5.14" // Compatible with Kotlin 2.0.21
+        kotlinCompilerExtensionVersion = "1.6.10" // Fallback to stable version
     }
 
     buildTypes {
@@ -60,12 +68,12 @@ dependencies {
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.work.runtime.ktx)
     implementation(libs.health.connect.client) {
-        exclude("com.intellij", "annotations") // Kotlin DSL syntax
+        exclude("com.intellij", "annotations")
     }
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.retrofit) {
-        exclude("com.intellij", "annotations") // Kotlin DSL syntax
+        exclude("com.intellij", "annotations")
     }
     implementation(libs.converter.gson)
     implementation(libs.kotlinx.coroutines.core)
@@ -80,31 +88,30 @@ dependencies {
     implementation(libs.okhttp)
     implementation(libs.coil.compose)
     implementation(libs.androidx.compose.bom)
-    implementation (libs.accompanist.swiperefresh)
-
-
-    // Explicitly use latest annotations
+    implementation(libs.accompanist.swiperefresh)
     implementation(libs.annotations)
-    implementation(libs.androidx.foundation.android)
     implementation(libs.firebase.messaging.ktx)
     implementation(libs.androidx.datastore.core.android)
     implementation(libs.androidx.core.ktx)
-
+    implementation(libs.androidx.media3.common.ktx)
+    implementation(libs.androidx.ui.graphics.android)
+    implementation(libs.androidx.ui.graphics.android)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.test.core)
     androidTestImplementation(libs.androidx.test.runner)
     androidTestImplementation(libs.androidx.test.rules)
     androidTestImplementation(libs.androidx.test.ext.junit)
-    implementation (libs.hilt.android)
-    implementation (libs.androidx.work.runtime.ktx.v290)
+    implementation(libs.hilt.android)
+    implementation(libs.androidx.work.runtime.ktx.v290)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation(libs.androidx.browser)
-
-    // Force resolution to 23.0.0 and exclude older versions
+    implementation(libs.play.services.maps)
+    implementation(libs.play.services.location)
+    implementation(libs.maps.compose)
     configurations.all {
         resolutionStrategy {
             force("org.jetbrains:annotations:23.0.0")
-            exclude("com.intellij", "annotations") // Kotlin DSL syntax
+            exclude("com.intellij", "annotations")
         }
     }
 }

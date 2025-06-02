@@ -3,6 +3,7 @@ package com.trailblazewellness.fitglide.presentation.meals
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.annotations.SerializedName
 import com.trailblazewellness.fitglide.auth.AuthRepository
 import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.api.StrapiRepository
@@ -386,6 +387,12 @@ class MealsViewModel(
             try {
                 val token = "Bearer ${authRepository.getAuthState().jwt ?: return@launch}"
                 val userId = authRepository.getAuthState().getId().toString()
+                val currentDate = _mealsData.value.selectedDate
+
+                // Check for existing active diet plan for today
+                val dietPlanResponse = strapiRepository.getDietPlan(userId, currentDate, token)
+                val activePlan = dietPlanResponse.body()?.data?.find { it.active && it.meals?.any { meal -> meal.mealDate == currentDate.toString() } == true }
+
                 val healthVitalsResponse = strapiRepository.getHealthVitals(userId, token)
                 val healthVitals = healthVitalsResponse.body()?.data?.first()
                 val bmr = healthVitals?.calorieGoal?.toFloat() ?: 1800f
@@ -398,48 +405,23 @@ class MealsViewModel(
                 val targetCalories = bmr + calorieAdjustment
                 val perMealCalories = targetCalories / mealCount
 
-                val dietPlanRequest = DietPlanRequest(
-                    name = "diet_plan_${System.currentTimeMillis()}",
-                    totalCalories = targetCalories.toInt(),
-                    dietPreference = _mealsData.value.mealType,
-                    active = true,
-                    pointsEarned = 0,
-                    dietGoal = strategy,
-                    mealIds = emptyList(),
-                    userId = StrapiApi.UserId(userId)
-                )
-                val dietPlanResponse = strapiRepository.postDietPlan(dietPlanRequest, token)
-                if (!dietPlanResponse.isSuccessful) {
-                    Log.e("MealsViewModel", "Failed to create diet plan: ${dietPlanResponse.code()} - ${dietPlanResponse.errorBody()?.string()}")
-                    return@launch
-                }
-                val dietPlanId = dietPlanResponse.body()?.data?.documentId ?: return@launch
-
                 val components = _searchComponents.value
                 val meals = mutableListOf<MealSlot>()
                 val mealIds = mutableListOf<String>()
 
                 val mealSlots = mutableListOf<Triple<String, String, String>>()
                 when (mealCount) {
-                    3 -> {
-                        mealSlots.addAll(
-                            listOf(
-                                Triple("Breakfast", breakfastFav, "08:00:00.000"),
-                                Triple("Lunch", lunchFav, "13:00:00.000"),
-                                Triple("Dinner", dinnerFav, "19:00:00.000")
-                            )
-                        )
-                    }
-                    4 -> {
-                        mealSlots.addAll(
-                            listOf(
-                                Triple("Breakfast", breakfastFav, "08:00:00.000"),
-                                Triple("Lunch", lunchFav, "13:00:00.000"),
-                                Triple("Snack", snackFav, "16:00:00.000"),
-                                Triple("Dinner", dinnerFav, "19:00:00.000")
-                            )
-                        )
-                    }
+                    3 -> mealSlots.addAll(listOf(
+                        Triple("Breakfast", breakfastFav, "08:00:00.000"),
+                        Triple("Lunch", lunchFav, "13:00:00.000"),
+                        Triple("Dinner", dinnerFav, "19:00:00.000")
+                    ))
+                    4 -> mealSlots.addAll(listOf(
+                        Triple("Breakfast", breakfastFav, "08:00:00.000"),
+                        Triple("Lunch", lunchFav, "13:00:00.000"),
+                        Triple("Snack", snackFav, "16:00:00.000"),
+                        Triple("Dinner", dinnerFav, "19:00:00.000")
+                    ))
                     else -> {
                         mealSlots.add(Triple("Breakfast", breakfastFav, "08:00:00.000"))
                         mealSlots.add(Triple("Lunch", lunchFav, "13:00:00.000"))
@@ -467,12 +449,29 @@ class MealsViewModel(
                         name = "$type Meal",
                         meal_time = time,
                         base_portion = (favCalories + (fillerCalories * scale)).toInt(),
+                        basePortionUnit = "Serving",
                         totalCalories = perMealCalories.toInt(),
-                        meal_date = _mealsData.value.selectedDate.toString(),
+                        totalProtein = (parseMacro(favComponent?.protein) + parseMacro(filler?.protein) * scale),
+                        totalCarbs = (parseMacro(favComponent?.carbs) + parseMacro(filler?.carbs) * scale),
+                        totalFat = (parseMacro(favComponent?.fat) + parseMacro(filler?.fat) * scale),
+                        meal_date = currentDate.toString(),
                         diet_components = listOfNotNull(favComponent?.documentId, filler?.documentId),
-                        diet_plan = dietPlanId
+                        diet_plan = activePlan?.documentId,
+                        usersPermissionsUser = StrapiApi.UserId(userId)
                     )
-                    val mealResponse = strapiRepository.postMeal(mealRequest, token)
+
+                    val mealResponse = if (activePlan != null) {
+                        // Update existing meal or add new one
+                        val existingMeal = activePlan.meals?.find { it.name == "$type Meal" && it.mealDate == currentDate.toString() }
+                        if (existingMeal != null) {
+                            strapiRepository.updateMeal(existingMeal.documentId, mealRequest, token)
+                        } else {
+                            strapiRepository.postMeal(mealRequest, token)
+                        }
+                    } else {
+                        strapiRepository.postMeal(mealRequest, token)
+                    }
+
                     if (mealResponse.isSuccessful) {
                         val mealId = mealResponse.body()?.data?.documentId ?: "meal_${System.currentTimeMillis()}_${meals.size}"
                         mealIds.add(mealId)
@@ -503,7 +502,7 @@ class MealsViewModel(
                                 carbs = mealCarbs,
                                 fat = mealFat,
                                 fiber = mealFiber,
-                                date = _mealsData.value.selectedDate,
+                                date = currentDate,
                                 isMissed = missed,
                                 targetCalories = perMealCalories
                             )
@@ -512,8 +511,53 @@ class MealsViewModel(
                 }
 
                 val sortedMeals = meals.sortedBy { LocalTime.parse(it.time, DateTimeFormatter.ofPattern("HH:mm")) }
+
+                // Create or update diet plan
+                val dietPlanRequest = DietPlanRequest(
+                    name = activePlan?.planId ?: "diet_plan_${System.currentTimeMillis()}",
+                    totalCalories = targetCalories.toInt(),
+                    dietPreference = _mealsData.value.mealType,
+                    active = true,
+                    pointsEarned = activePlan?.pointsEarned ?: 0,
+                    dietGoal = strategy,
+                    meals = mealIds,
+                    usersPermissionsUser = StrapiApi.UserId(userId)
+                )
+
+                val dietPlanId = if (activePlan != null) {
+                    val response = strapiRepository.updateDietPlan(activePlan.documentId, dietPlanRequest, token)
+                    if (response.isSuccessful) activePlan.documentId else null
+                } else {
+                    val response = strapiRepository.postDietPlan(dietPlanRequest, token)
+                    if (response.isSuccessful) response.body()?.data?.documentId else null
+                } ?: return@launch
+
+                // Update meals with the diet plan ID if new plan was created
+                if (activePlan == null) {
+                    mealIds.forEach { mealId ->
+                        val meal = meals.find { it.id == mealId }
+                        if (meal != null) {
+                            val mealRequest = MealRequest(
+                                name = "${meal.type} Meal",
+                                meal_time = meal.time + ":00.000",
+                                base_portion = meal.items.sumOf { it.servingSize.toDouble() }.toInt(),
+                                basePortionUnit = "Serving",
+                                totalCalories = meal.items.sumOf { it.calories.toDouble() }.toInt(),
+                                totalProtein = meal.protein,
+                                totalCarbs = meal.carbs,
+                                totalFat = meal.fat,
+                                meal_date = currentDate.toString(),
+                                diet_components = meal.items.map { it.id },
+                                diet_plan = dietPlanId,
+                                usersPermissionsUser = StrapiApi.UserId(userId)
+                            )
+                            strapiRepository.updateMeal(mealId, mealRequest, token)
+                        }
+                    }
+                }
+
                 val dietLogRequest = StrapiApi.DietLogRequest(
-                    date = _mealsData.value.selectedDate.toString(),
+                    date = currentDate.toString(),
                     usersPermissionsUser = StrapiApi.UserId(userId),
                     meals = sortedMeals.map { meal ->
                         StrapiApi.MealLogEntry(
@@ -524,8 +568,8 @@ class MealsViewModel(
                 )
                 val logResponse = strapiRepository.postDietLog(dietLogRequest, token)
                 if (logResponse.isSuccessful) {
-                    dailyLogIds[_mealsData.value.selectedDate] = logResponse.body()?.data?.documentId
-                    Log.d("MealsViewModel", "Initial daily diet log created for ${_mealsData.value.selectedDate}")
+                    dailyLogIds[currentDate] = logResponse.body()?.data?.documentId
+                    Log.d("MealsViewModel", "Initial daily diet log created for $currentDate")
                 }
 
                 updateCurrentMeal(sortedMeals)
@@ -598,7 +642,7 @@ class MealsViewModel(
                 fiber = schedule.sumOf { slot ->
                     slot.items.filter { it.isConsumed }.sumOf { parseMacro(componentsCache[it.id]?.fiber).toDouble() }
                 }.toFloat(),
-                questProgress = _mealsData.value.protein // Update quest progress based on protein for now
+                questProgress = _mealsData.value.protein
             )
             Log.d("MealsViewModel", "Replaced component at mealIndex=$mealIndex, itemIndex=$itemIndex with $newComponentId, scaled to $scale")
 
@@ -628,10 +672,12 @@ class MealsViewModel(
                         name = mealToUpdate.name,
                         meal_time = mealToUpdate.mealTime,
                         base_portion = mealToUpdate.basePortion,
+                        basePortionUnit = "Serving",
                         totalCalories = mealToUpdate.totalCalories,
                         meal_date = mealToUpdate.mealDate,
                         diet_components = updatedComponents,
-                        diet_plan = activePlan.documentId
+                        diet_plan = activePlan.documentId,
+                        usersPermissionsUser = StrapiApi.UserId(userId)
                     )
                     val updateResponse = strapiRepository.updateMeal(mealToUpdate.documentId, mealRequest, token)
                     if (updateResponse.isSuccessful) {
@@ -832,13 +878,52 @@ class MealsViewModel(
         viewModelScope.launch {
             try {
                 val token = "Bearer ${authRepository.getAuthState().jwt ?: return@launch}"
-                val response = strapiRepository.getDietComponents("Veg", token)
-                if (response.isSuccessful) {
-                    val recipes = response.body()?.data?.take(10)?.map { "${it.name} - ${it.calories} Kcal" } ?: emptyList()
-                    _mealsData.update { it.copy(recipes = recipes) }
+                val userId = authRepository.getAuthState().getId().toString()
+                val currentDate = _mealsData.value.selectedDate
+
+                val dietPlanResponse = strapiRepository.getDietPlan(userId, currentDate, token)
+                if (!dietPlanResponse.isSuccessful) {
+                    Log.e("MealsViewModel", "Failed to fetch diet plan: ${dietPlanResponse.code()} - ${dietPlanResponse.errorBody()?.string()}")
+                    _mealsData.update { it.copy(recipes = emptyList()) }
+                    return@launch
                 }
+
+                val activePlan = dietPlanResponse.body()?.data?.find {
+                    it.active && it.meals?.any { meal -> meal.mealDate == currentDate.toString() } == true
+                }
+                if (activePlan == null) {
+                    Log.w("MealsViewModel", "No active diet plan found for $currentDate")
+                    _mealsData.update { it.copy(recipes = emptyList()) }
+                    return@launch
+                }
+
+                val components = activePlan.meals
+                    ?.filter { it.mealDate == currentDate.toString() }
+                    ?.flatMap { it.dietComponents ?: emptyList() }
+                    ?.distinctBy { it.documentId }
+                    ?.map {
+                        Log.d(
+                            "MealsViewModel",
+                            "DietComponentEntry: id=${it.documentId}, name=${it.name}, " +
+                                    "calories=${it.calories}, protein=${it.protein}, " +
+                                    "carbohydrate=${it.carbs}, total_fat=${it.fat}, fiber=${it.fiber}"
+                        )
+                        DietComponentCard(
+                            id = it.documentId,
+                            name = it.name ?: "Unknown",
+                            calories = it.calories?.toString() ?: "0",
+                            protein = it.protein?.takeIf { it.isNotBlank() } ?: "0g",
+                            carbs = it.carbs?.takeIf { it.isNotBlank() } ?: "0g",
+                            fat = it.fat?.takeIf { it.isNotBlank() } ?: "0g",
+                            fiber = it.fiber?.takeIf { it.isNotBlank() } ?: "0g"
+                        )
+                    } ?: emptyList()
+
+                Log.d("MealsViewModel", "Fetched ${components.size} recipe components: ${components.map { "${it.name}: P=${it.protein}, C=${it.carbs}, F=${it.fat}, Fib=${it.fiber}" }}")
+                _mealsData.update { it.copy(recipes = components) }
             } catch (e: Exception) {
                 Log.e("MealsViewModel", "Error fetching recipes: ${e.message}", e)
+                _mealsData.update { it.copy(recipes = emptyList()) }
             }
         }
     }
@@ -978,7 +1063,7 @@ data class MealsData(
     val customMealRequested: Boolean,
     val customMealMessage: String,
     val hasDietPlan: Boolean,
-    val recipes: List<String> = emptyList(),
+    val recipes: List<DietComponentCard> = emptyList(), // Changed from List<String>
     val proteinGoal: Float = 0f,
     val carbsGoal: Float = 0f,
     val fatGoal: Float = 0f,
@@ -1012,43 +1097,53 @@ data class MealRequest(
     val name: String,
     val meal_time: String,
     val base_portion: Int,
+    @SerializedName("base_portion_unit") val basePortionUnit: String,
     val totalCalories: Int,
+    val totalProtein: Float? = null, // Optional, set in createDietPlan
+    val totalCarbs: Float? = null,  // Optional
+    val totalFat: Float? = null,    // Optional
     val meal_date: String,
     val diet_components: List<String>? = null,
-    val diet_plan: String? = null
+    val diet_plan: String? = null,
+    @SerializedName("users_permissions_user") val usersPermissionsUser: StrapiApi.UserId? = null
 ) {
     fun toMapNonNull(): Map<String, Any> = mapOf(
         "data" to mapOf(
             "name" to name,
             "meal_time" to meal_time,
             "base_portion" to base_portion,
-            "totalCalories" to totalCalories,
-            "meal_date" to meal_date
-        ).plus(diet_components?.let { mapOf("diet_components" to it) } ?: emptyMap())
+            "base_portion_unit" to basePortionUnit,
+            "totalCalories" to totalCalories
+        ).plus(totalProtein?.let { mapOf("totalProtein" to it) } ?: emptyMap())
+            .plus(totalCarbs?.let { mapOf("totalCarbs" to it) } ?: emptyMap())
+            .plus(totalFat?.let { mapOf("totalFat" to it) } ?: emptyMap())
+            .plus(mapOf("meal_date" to meal_date))
+            .plus(diet_components?.let { mapOf("diet_components" to it) } ?: emptyMap())
             .plus(diet_plan?.let { mapOf("diet_plan" to it) } ?: emptyMap())
+            .plus(usersPermissionsUser?.let { mapOf("users_permissions_user" to it.id) } ?: emptyMap())
     )
 }
 
 data class DietPlanRequest(
-    val name: String,
-    val totalCalories: Int,
-    val dietPreference: String,
+    @SerializedName("plan_id") val name: String,
+    @SerializedName("total_calories") val totalCalories: Int,
+    @SerializedName("diet_preference") val dietPreference: String,
     val active: Boolean,
-    val pointsEarned: Int,
-    val dietGoal: String,
-    val mealIds: List<String>,
-    val userId: StrapiApi.UserId
+    @SerializedName("points_earned") val pointsEarned: Int,
+    @SerializedName("diet_goal") val dietGoal: String,
+    val meals: List<String>,
+    @SerializedName("users_permissions_user") val usersPermissionsUser: StrapiApi.UserId // Fixed field name
 ) {
     fun toMapNonNull(): Map<String, Any> = mapOf(
         "data" to mapOf(
             "plan_id" to name,
             "total_calories" to totalCalories,
             "diet_preference" to dietPreference,
-            "Active" to active,
+            "active" to active,
             "points_earned" to pointsEarned,
             "diet_goal" to dietGoal,
-            "meals" to mealIds,
-            "users_permissions_user" to userId.id
+            "meals" to meals,
+            "users_permissions_user" to usersPermissionsUser.id
         )
     )
 }
@@ -1098,3 +1193,13 @@ data class FeedbackRequest(
         )
     )
 }
+
+data class DietComponentCard(
+    val id: String,
+    val name: String,
+    val calories: String,
+    val protein: String,
+    val carbs: String,
+    val fat: String,
+    val fiber: String
+)
