@@ -1,9 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.FitGlide" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="colorPrimary">@color/blue_500</item> <!-- #4285F4 -->
         <item name="colorSecondary">@color/green_500</item> <!-- #34A853 -->
-        <item name="android:colorBackground">@color/light_gray</item> <!-- #F5F5F5 -->
-        <item name="colorSurface">@android:color/white</item>
+        <item name="android:colorBackground">@color/dark_gray</item> <!-- #121212 -->
+        <item name="colorSurface">@color/dark_surface</item> <!-- #1E1E1E -->
         <item name="android:statusBarColor">@color/blue_500</item>
+        <item name="android:windowLightStatusBar">false</item>
     </style>
 </resources>

@@ -9,6 +9,7 @@ import com.trailblazewellness.fitglide.auth.AuthRepository
 import com.trailblazewellness.fitglide.data.api.StrapiApi
 import com.trailblazewellness.fitglide.data.api.StrapiRepository
 import com.trailblazewellness.fitglide.data.healthconnect.HealthConnectManager
+import com.trailblazewellness.fitglide.data.healthconnect.WorkoutData
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,8 +18,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.UUID
+import kotlin.math.abs
 
 class CommonViewModel(
     private val context: Context,
@@ -26,11 +29,10 @@ class CommonViewModel(
     private val healthConnectManager: HealthConnectManager,
     private val authRepository: AuthRepository
 ) : ViewModel() {
-    private val userId = authRepository.getAuthState().getId() ?: "4"
+    private val userId = authRepository.getAuthState().getId() ?: ""
     private val sharedPreferences: SharedPreferences =
         context.getSharedPreferences("fitglide_prefs", Context.MODE_PRIVATE)
 
-    // ... existing StateFlow declarations (steps, sleepHours, etc.)
     private val _steps = MutableStateFlow(sharedPreferences.getFloat("steps", 0f))
     val steps: StateFlow<Float> = _steps.asStateFlow()
 
@@ -64,9 +66,6 @@ class CommonViewModel(
     private val _comments = MutableStateFlow<Map<String, List<StrapiApi.CommentEntry>>>(emptyMap())
     val comments: StateFlow<Map<String, List<StrapiApi.CommentEntry>>> = _comments.asStateFlow()
 
-    private val _isTracking = MutableStateFlow(false)
-    val isTracking: StateFlow<Boolean> = _isTracking.asStateFlow()
-
     private val _date = MutableStateFlow(LocalDate.now())
     val date: StateFlow<LocalDate> = _date.asStateFlow()
 
@@ -83,11 +82,12 @@ class CommonViewModel(
     val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
 
     private val isoFormatter = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'")
+    private var lastStepUpdateTime = 0L
+    private val STEP_UPDATE_INTERVAL_MS = 1000L // 1 second
 
     fun getAuthRepository(): AuthRepository = authRepository
     fun getStrapiRepository(): StrapiRepository = strapiRepository
 
-    // New function to post UI messages
     fun postUiMessage(message: String) {
         viewModelScope.launch {
             _uiMessage.value = message
@@ -122,10 +122,8 @@ class CommonViewModel(
                 Log.d("CommonViewModel", "Past sleep resynced in ${System.currentTimeMillis() - startTime}ms")
             }
             launch {
-                while (true) {
-                    _isTracking.value = healthConnectManager.isTracking()
-                    delay(5000L)
-                }
+                resyncPastWorkoutData(token, 8)
+                Log.d("CommonViewModel", "Past workout data resynced in ${System.currentTimeMillis() - startTime}ms")
             }
         }
     }
@@ -145,95 +143,116 @@ class CommonViewModel(
         return "Bearer $jwt"
     }
 
+    suspend fun syncSteps(steps: Float, date: LocalDate, source: String = "Manual") {
+        val dateStr = date.atStartOfDay().format(isoFormatter)
+        Log.d("CommonViewModel", "Syncing steps: steps=$steps, date=$dateStr, source=$source, userId=$userId")
+
+        try {
+            val token = waitForAuthToken()
+            if (steps > 0) {
+                val response = strapiRepository.syncHealthLog(
+                    date = dateStr,
+                    steps = steps.toLong(),
+                    hydration = if (source == "Manual") 0f else _hydration.value,
+                    heartRate = if (source == "Manual") null else _heartRate.value.toLong().takeIf { it > 0 },
+                    caloriesBurned = if (source == "Manual") null else _caloriesBurned.value,
+                    source = source,
+                    token = token
+                )
+                if (response.isSuccessful) {
+                    Log.d("CommonViewModel", "Synced $source steps: $steps")
+                    postUiMessage("Steps saved to health log")
+                    if (source == "Manual") {
+                        _steps.value += steps
+                        sharedPreferences.edit()
+                            .putFloat("steps", _steps.value)
+                            .putFloat("trackedSteps", 0f)
+                            .apply()
+                        _trackedStepsFlow.value = 0f
+                    }
+                } else {
+                    Log.e("CommonViewModel", "$source sync failed: ${response.code()}")
+                    postUiMessage("Failed to sync steps")
+                }
+            }
+
+            if (source == "HealthConnect") {
+                val vitalsResponse = strapiRepository.getHealthVitals(userId, token)
+                val waterGoal = vitalsResponse.body()?.data?.firstOrNull()?.waterGoal ?: 2.5f
+                val bmrGoal = vitalsResponse.body()?.data?.firstOrNull()?.calorieGoal ?: 2000
+                if (_hydration.value == 0f) _hydration.value = waterGoal
+                _bmr.value = bmrGoal
+                sharedPreferences.edit().apply {
+                    putFloat("hydration", _hydration.value)
+                    putInt("bmr", _bmr.value)
+                }.apply()
+            }
+        } catch (e: Exception) {
+            Log.e("CommonViewModel", "Error syncing steps: ${e.message}", e)
+            postUiMessage("Failed to sync steps")
+        }
+    }
+
     suspend fun syncHealthData(token: String, userId: String = this.userId) {
         val dateStr = _date.value.atStartOfDay().format(isoFormatter)
         Log.d("CommonViewModel", "Attempting health sync: date=$dateStr, userId=$userId")
 
         try {
-            val existingLogsResponse = strapiRepository.getHealthLog(dateStr, token)
-            val existingLogs = if (existingLogsResponse.isSuccessful) {
-                existingLogsResponse.body()?.data ?: emptyList()
-            } else {
-                Log.e("CommonViewModel", "Failed to fetch health logs: ${existingLogsResponse.code()}")
-                emptyList()
-            }
-
-            existingLogs.firstOrNull()?.let { log ->
-                _steps.value = log.steps?.toFloat() ?: 0f
-                _hydration.value = log.waterIntake ?: 0f
-                _heartRate.value = log.heartRate?.toFloat() ?: 0f
-                _caloriesBurned.value = log.caloriesBurned ?: 0f
-                sharedPreferences.edit().apply {
-                    putFloat("steps", _steps.value)
-                    putFloat("hydration", _hydration.value)
-                    putFloat("heartRate", _heartRate.value)
-                    putFloat("caloriesBurned", _caloriesBurned.value)
-                }.apply()
-            }
-
-            val vitalsResponse = strapiRepository.getHealthVitals(userId, token)
-            val waterGoal = vitalsResponse.body()?.data?.firstOrNull()?.waterGoal ?: 2.5f
-            val bmrGoal = vitalsResponse.body()?.data?.firstOrNull()?.calorieGoal ?: 2000
-            if (_hydration.value == 0f) _hydration.value = waterGoal
-            _bmr.value = bmrGoal
-            sharedPreferences.edit().apply {
-                putFloat("hydration", _hydration.value)
-                putInt("bmr", _bmr.value)
-            }.apply()
-
+            // Fetch Health Connect steps
             val watchSteps = healthConnectManager.readSteps(_date.value).toFloat()
-            val trackedSteps = _trackedStepsFlow.value
-            val workoutData = healthConnectManager.readExerciseSessions(_date.value)
-            val heartRate = workoutData.heartRateAvg ?: healthConnectManager.readDailyHeartRate(_date.value)
-            val caloriesBurned = (workoutData.calories ?: 0.0).toFloat()
+            Log.d("CommonViewModel", "Health Connect steps: $watchSteps")
 
+            // Sync Health Connect steps
             if (watchSteps > 0) {
-                val response = strapiRepository.syncHealthLog(
-                    date = dateStr,
-                    steps = watchSteps.toLong(),
-                    hydration = _hydration.value,
-                    heartRate = heartRate,
-                    caloriesBurned = caloriesBurned,
-                    source = "HealthConnect",
-                    token = token
-                )
-                if (response.isSuccessful) {
-                    _steps.value = watchSteps
-                    _heartRate.value = heartRate?.toFloat() ?: 0f
-                    _caloriesBurned.value = caloriesBurned
-                    sharedPreferences.edit().apply {
-                        putFloat("steps", _steps.value)
-                        putFloat("heartRate", _heartRate.value)
-                        putFloat("caloriesBurned", _caloriesBurned.value)
-                    }.apply()
-                } else {
-                    Log.e("CommonViewModel", "HealthConnect sync failed: ${response.code()}")
-                    postUiMessage("Failed to sync health data.")
-                }
+                syncSteps(watchSteps, _date.value, "HealthConnect")
             }
 
-            if (trackedSteps > 0 && (watchSteps == 0f || trackedSteps > watchSteps)) {
-                val manualSteps = if (watchSteps > 0) trackedSteps - watchSteps else trackedSteps
-                val response = strapiRepository.syncHealthLog(
-                    date = dateStr,
-                    steps = manualSteps.toLong(),
-                    hydration = 0f,
-                    heartRate = null,
-                    caloriesBurned = null,
-                    source = "Manual",
-                    token = token
-                )
-                if (response.isSuccessful) {
-                    _steps.value = watchSteps + manualSteps
-                    sharedPreferences.edit().putFloat("steps", _steps.value).apply()
-                } else {
-                    Log.e("CommonViewModel", "Manual tracking sync failed: ${response.code()}")
-                    postUiMessage("Failed to sync manual steps.")
-                }
+            // Sync workout sessions
+            val sessions = healthConnectManager.readExerciseSessions(_date.value)
+            sessions.forEach { session ->
+                syncWorkoutSession(session, token, userId)
             }
         } catch (e: Exception) {
             Log.e("CommonViewModel", "Error syncing health data: ${e.message}", e)
             postUiMessage("Failed to load data. Please try again.")
+        }
+    }
+
+    private suspend fun syncWorkoutSession(session: WorkoutData, token: String, userId: String) {
+        if (session.start == null || session.end == null) {
+            Log.d("CommonViewModel", "Skipping workout session sync: Invalid start/end time")
+            return
+        }
+
+        val startTimeStr = session.start.format(DateTimeFormatter.ISO_DATE_TIME)
+        val endTimeStr = session.end.format(DateTimeFormatter.ISO_DATE_TIME)
+
+        val distanceMiles = session.distance?.let { (it / 1609.34).toFloat() } ?: 0f
+        val durationMinutes = session.duration?.toMinutes()?.toFloat() ?: 0f
+        val logRequest = StrapiApi.WorkoutLogRequest(
+            logId = "wearable_${session.start}_${System.currentTimeMillis()}",
+            workout = null,
+            startTime = startTimeStr,
+            endTime = endTimeStr,
+            distance = distanceMiles,
+            totalTime = durationMinutes,
+            calories = session.calories?.toFloat() ?: 0f,
+            heartRateAverage = session.heartRateAvg ?: 0L,
+            heartRateMaximum = 0L,
+            heartRateMinimum = 0L,
+            route = emptyList(),
+            completed = true,
+            notes = "Auto-synced from wearable (${session.type})",
+            usersPermissionsUser = StrapiApi.UserId(userId)
+        )
+
+        Log.d("CommonViewModel", "Syncing workout session: $startTimeStr")
+        val response = strapiRepository.syncWorkoutLog(logRequest, token)
+        if (response.isSuccessful) {
+            Log.d("CommonViewModel", "Workout session synced to Strapi: $startTimeStr")
+        } else {
+            Log.e("CommonViewModel", "Failed to sync workout session: ${response.code()}")
+            postUiMessage("Failed to sync workout session.")
         }
     }
 
@@ -242,11 +261,17 @@ class CommonViewModel(
     }
 
     fun updateTrackedSteps(steps: Float) {
-        _trackedStepsFlow.value = steps
-        sharedPreferences.edit().putFloat("trackedSteps", steps).apply()
-        viewModelScope.launch {
-            val token = waitForAuthToken()
-            syncHealthData(token)
+        viewModelScope.launch(Dispatchers.Main) {
+            val currentTime = System.currentTimeMillis()
+            if (currentTime - lastStepUpdateTime >= STEP_UPDATE_INTERVAL_MS) {
+                // Only update if significant change or enough time has passed
+                if (abs(steps - _trackedStepsFlow.value) > 0.1f) {
+                    _trackedStepsFlow.value = steps
+                    sharedPreferences.edit().putFloat("trackedSteps", steps).apply()
+                    Log.d("CommonViewModel", "Updated tracked steps: $steps")
+                    lastStepUpdateTime = currentTime
+                }
+            }
         }
     }
 
@@ -259,10 +284,14 @@ class CommonViewModel(
             val existingLogsResponse = strapiRepository.fetchSleepLog(sleepDate)
             if (existingLogsResponse.isSuccessful && existingLogsResponse.body()?.data?.isNotEmpty() == true) {
                 val documentId = existingLogsResponse.body()!!.data.first().documentId
-                val response = strapiRepository.updateSleepLog(documentId, sleepData)
-                if (response.isSuccessful) {
-                    _sleepHours.value = sleepHours
-                    sharedPreferences.edit().putFloat("sleepHours", sleepHours).apply()
+                if (sleepData.total > Duration.ZERO) {
+                    val response = strapiRepository.updateSleepLog(documentId, sleepData)
+                    if (response.isSuccessful) {
+                        _sleepHours.value = sleepHours
+                        sharedPreferences.edit().putFloat("sleepHours", sleepHours).apply()
+                    }
+                } else {
+                    Log.d("CommonViewModel", "Skipping update for $sleepDate: No valid sleep data")
                 }
             } else if (sleepHours > 0) {
                 val response = strapiRepository.syncSleepLog(sleepDate, sleepData)
@@ -296,7 +325,7 @@ class CommonViewModel(
 
             val packId = _packs.value.firstOrNull()?.id
             val postsResponse = strapiRepository.getPosts(packId, token)
-            if (postsResponse.isSuccessful) _posts.value = postsResponse.body()?.data ?: emptyList()
+            if (packsResponse.isSuccessful) _posts.value = postsResponse.body()?.data ?: emptyList()
 
             val cheersResponse = strapiRepository.getCheers(userId, token)
             if (cheersResponse.isSuccessful) _cheers.value = cheersResponse.body()?.data ?: emptyList()
@@ -380,15 +409,30 @@ class CommonViewModel(
             val existingLogsResponse = strapiRepository.fetchSleepLog(pastDate)
             if (existingLogsResponse.isSuccessful && existingLogsResponse.body()?.data?.isNotEmpty() == true) {
                 val documentId = existingLogsResponse.body()!!.data.first().documentId
-                val response = strapiRepository.updateSleepLog(documentId, sleepData)
-                if (response.isSuccessful) {
-                    Log.d("CommonViewModel", "Updated sleep for $pastDate")
+                if (sleepData.total > Duration.ZERO) {
+                    val response = strapiRepository.updateSleepLog(documentId, sleepData)
+                    if (response.isSuccessful) {
+                        Log.d("CommonViewModel", "Updated sleep for $pastDate")
+                    }
+                } else {
+                    Log.d("CommonViewModel", "Skipping update for $pastDate: No valid sleep data")
                 }
             } else if (sleepData.total > Duration.ZERO) {
                 val response = strapiRepository.syncSleepLog(pastDate, sleepData)
                 if (response.isSuccessful) {
                     Log.d("CommonViewModel", "Synced new sleep for $pastDate")
                 }
+            }
+        }
+    }
+
+    suspend fun resyncPastWorkoutData(token: String, daysBack: Int = 7) {
+        val today = LocalDate.now()
+        for (i in 0..daysBack) {
+            val pastDate = today.minusDays(i.toLong())
+            val sessions = healthConnectManager.readExerciseSessions(pastDate)
+            sessions.forEach { session ->
+                syncWorkoutSession(session, token, userId)
             }
         }
     }

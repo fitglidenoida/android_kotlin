@@ -1,5 +1,6 @@
 package com.trailblazewellness.fitglide
 
+import android.util.Log
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -21,16 +22,16 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF82B1FF), // Lighter Blue for dark mode
-    secondary = Color(0xFF81C784), // Lighter Green for dark mode
-    tertiary = Color(0xFFFFD54F), // Lighter Orange for dark mode
-    background = Color(0xFF121212), // Very dark gray (near black)
-    surface = Color(0xFF1E1E1E), // Slightly lighter dark gray
-    onPrimary = Color.Black, // Black text on lighter blue
-    onSecondary = Color.Black, // Black text on lighter green
-    onTertiary = Color.Black, // Black text on lighter orange
-    onBackground = Color(0xFFE0E0E0), // Light gray text on dark background
-    onSurface = Color(0xFFE0E0E0) // Light gray text on dark surface
+    primary = Color(0xFF82B1FF), // Lighter Blue
+    secondary = Color(0xFF81C784), // Lighter Green
+    tertiary = Color(0xFFFFD54F), // Lighter Orange
+    background = Color(0xFF121212), // Dark gray
+    surface = Color(0xFF1E1E1E), // Darker gray
+    onPrimary = Color.Black,
+    onSecondary = Color.Black,
+    onTertiary = Color.Black,
+    onBackground = Color(0xFFE0E0E0), // Light gray
+    onSurface = Color(0xFFE0E0E0)
 )
 
 @Composable
@@ -39,6 +40,7 @@ fun FitGlideTheme(
     content: @Composable () -> Unit
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    Log.d("FitGlideTheme", "Applying theme: dark=$darkTheme, primary=${colorScheme.primary}, surface=${colorScheme.surface}, onSurface=${colorScheme.onSurface}")
 
     MaterialTheme(
         colorScheme = colorScheme,

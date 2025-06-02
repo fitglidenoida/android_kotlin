@@ -15,12 +15,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.trailblazewellness.fitglide.FitGlideTheme
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SleepSettingsContent(
     viewModel: SleepViewModel,
@@ -28,9 +28,13 @@ fun SleepSettingsContent(
 ) {
     val sleepData by viewModel.sleepData.collectAsState()
     var syncEnabled by remember { mutableStateOf(true) }
-    var sleepGoal by remember { mutableStateOf(sleepData.restTime) }
+    var sleepGoal by remember { mutableStateOf(8f) }
     var selectedSound by remember { mutableStateOf("Rain") }
     val scrollState = rememberScrollState()
+
+    LaunchedEffect(sleepData) {
+        sleepData?.restTime?.let { sleepGoal = it }
+    }
 
     FitGlideTheme {
         Scaffold(
@@ -40,7 +44,10 @@ fun SleepSettingsContent(
                         .fillMaxWidth()
                         .background(
                             Brush.horizontalGradient(
-                                listOf(Color(0xFF4CAF50), Color(0xFF81C784))
+                                listOf(
+                                    MaterialTheme.colorScheme.primary,
+                                    MaterialTheme.colorScheme.secondary
+                                )
                             )
                         )
                         .padding(vertical = 16.dp, horizontal = 24.dp)
@@ -52,7 +59,7 @@ fun SleepSettingsContent(
                         Icon(
                             Icons.Default.Bedtime,
                             contentDescription = "Sleep Settings",
-                            tint = Color.White,
+                            tint = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.size(32.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
@@ -60,7 +67,7 @@ fun SleepSettingsContent(
                             text = "Sleep Settings",
                             style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color.White
+                            color = MaterialTheme.colorScheme.onPrimary
                         )
                     }
                 }
@@ -70,19 +77,18 @@ fun SleepSettingsContent(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(padding)
-                    .background(Color(0xFFF5F5F5))
+                    .background(MaterialTheme.colorScheme.background)
                     .verticalScroll(scrollState)
                     .padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                // Sync with Clock Card
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
                         .shadow(4.dp, RoundedCornerShape(12.dp)),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Row(
                         modifier = Modifier
@@ -95,29 +101,28 @@ fun SleepSettingsContent(
                             text = "Sync with Clock",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF212121)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Switch(
                             checked = syncEnabled,
                             onCheckedChange = { syncEnabled = it },
                             colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color(0xFF4CAF50),
-                                checkedTrackColor = Color(0xFF81C784),
-                                uncheckedThumbColor = Color(0xFF757575),
-                                uncheckedTrackColor = Color(0xFFCCCCCC)
+                                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                uncheckedTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             )
                         )
                     }
                 }
 
-                // Sleep Goal Card
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
                         .shadow(4.dp, RoundedCornerShape(12.dp)),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(
                         modifier = Modifier
@@ -128,7 +133,7 @@ fun SleepSettingsContent(
                             text = "Sleep Goal: ${String.format("%.1f", sleepGoal)}h",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF212121)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(8.dp))
                         Slider(
@@ -137,23 +142,22 @@ fun SleepSettingsContent(
                             valueRange = 6f..10f,
                             steps = 7,
                             colors = SliderDefaults.colors(
-                                thumbColor = Color(0xFF4CAF50),
-                                activeTrackColor = Color(0xFF81C784),
-                                inactiveTrackColor = Color(0xFFCCCCCC)
+                                thumbColor = MaterialTheme.colorScheme.primary,
+                                activeTrackColor = MaterialTheme.colorScheme.primary,
+                                inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                             ),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
 
-                // Default Sound Card
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(vertical = 8.dp)
                         .shadow(4.dp, RoundedCornerShape(12.dp)),
                     shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
                     Column(
                         modifier = Modifier
@@ -164,7 +168,7 @@ fun SleepSettingsContent(
                             text = "Default Sound: $selectedSound",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF212121)
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         LazyRow(
@@ -174,12 +178,19 @@ fun SleepSettingsContent(
                                 FilterChip(
                                     selected = selectedSound == sound,
                                     onClick = { selectedSound = sound /* TODO: Preview sound */ },
-                                    label = { Text(sound, fontSize = 14.sp, fontWeight = FontWeight.Medium) },
+                                    label = {
+                                        Text(
+                                            sound,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            color = if (selectedSound == sound) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
                                     colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = Color(0xFF4CAF50),
-                                        selectedLabelColor = Color.White,
-                                        containerColor = Color(0xFFE0E0E0),
-                                        labelColor = Color(0xFF212121)
+                                        selectedContainerColor = MaterialTheme.colorScheme.primary,
+                                        selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        labelColor = MaterialTheme.colorScheme.onSurface
                                     ),
                                     shape = RoundedCornerShape(8.dp)
                                 )
@@ -188,7 +199,6 @@ fun SleepSettingsContent(
                     }
                 }
 
-                // Save Button
                 Button(
                     onClick = {
                         viewModel.updateSettings(syncEnabled, sleepGoal)
@@ -198,12 +208,12 @@ fun SleepSettingsContent(
                         .fillMaxWidth()
                         .padding(top = 16.dp)
                         .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50)),
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                     shape = RoundedCornerShape(12.dp)
                 ) {
                     Text(
                         "Save",
-                        color = Color.White,
+                        color = MaterialTheme.colorScheme.onPrimary,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )

@@ -32,12 +32,14 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.trailblazewellness.fitglide.auth.AuthRepository
 import com.trailblazewellness.fitglide.data.api.StrapiApi
+import com.trailblazewellness.fitglide.presentation.home.HomeViewModel
 import com.trailblazewellness.fitglide.presentation.viewmodel.CommonViewModel
 
 @Composable
 fun FriendsScreen(
     navController: NavController,
     commonViewModel: CommonViewModel,
+    homeViewModel: HomeViewModel,
     authRepository: AuthRepository
 ) {
     val authState by authRepository.authStateFlow.collectAsState()
@@ -47,7 +49,9 @@ fun FriendsScreen(
     val posts by commonViewModel.posts.collectAsState(initial = emptyList())
     val cheers by commonViewModel.cheers.collectAsState(initial = emptyList())
     val comments by commonViewModel.comments.collectAsState(initial = emptyMap())
-    val isTracking by commonViewModel.isTracking.collectAsState(initial = false)
+    val homeData by homeViewModel.homeData.collectAsState()
+    val isTracking = homeData.isTracking
+    val trackedSteps = homeData.trackedSteps
     val uiMessage by commonViewModel.uiMessage.collectAsState()
     val userId = authState.getId() ?: "4"
 
@@ -260,56 +264,9 @@ fun FriendsScreen(
                         Text("No cheers yet", fontSize = 16.sp, color = Color.Gray, modifier = Modifier.padding(16.dp))
                     }
                 }
-                item { LiveCheerCard(userId, isTracking, commonViewModel) }
 
                 item {
-                    AnimatedVisibility(visible = true, enter = fadeIn()) {
-                        Text(
-                            "Pride Milestones",
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.padding(top = 16.dp)
-                        )
-                    }
-                }
-                item {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                            .clickable {
-                                val intent = Intent(Intent.ACTION_SEND).apply {
-                                    type = "text/plain"
-                                    putExtra(Intent.EXTRA_TEXT, "Check out my 5-Day Streak on FitGlide!")
-                                }
-                                context.startActivity(Intent.createChooser(intent, "Share Streak"))
-                            },
-                        horizontalArrangement = Arrangement.Start,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(16.dp),
-                            color = Color(0xFFFFF9C4),
-                            modifier = Modifier
-                                .padding(end = 8.dp)
-                                .shadow(6.dp, RoundedCornerShape(16.dp))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(Icons.Default.EmojiEvents, contentDescription = "Trophy", tint = Color(0xFFFFA500))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "5-Day Streak",
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF212121)
-                                )
-                            }
-                        }
-                        Icon(Icons.Default.Share, contentDescription = "Share", tint = Color(0xFF4CAF50))
-                    }
+                    LiveCheerCard(userId, isTracking, trackedSteps, commonViewModel, context)
                 }
             }
         }
@@ -448,7 +405,7 @@ fun PackCard(pack: StrapiApi.PackEntry) {
                 interactionSource = interactionSource,
                 modifier = Modifier.scale(scale)
             ) {
-                Icon(Icons.Default.Group, contentDescription = "Pack", tint = Color(0xFF4CAF50)) // Fixed syntax
+                Icon(Icons.Default.Group, contentDescription = "Pack", tint = Color(0xFF4CAF50))
             }
             Spacer(modifier = Modifier.width(8.dp))
             Text(
@@ -547,42 +504,58 @@ fun CheerCard(cheer: StrapiApi.CheerEntry, userId: String) {
 }
 
 @Composable
-fun LiveCheerCard(userId: String, isTracking: Boolean, viewModel: CommonViewModel) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .shadow(6.dp, RoundedCornerShape(8.dp)),
-        shape = RoundedCornerShape(8.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
-    ) {
-        Row(
+fun LiveCheerCard(
+    userId: String,
+    isTracking: Boolean,
+    trackedSteps: Float,
+    viewModel: CommonViewModel,
+    context: android.content.Context
+) {
+    AnimatedVisibility(visible = isTracking) {
+        Card(
             modifier = Modifier
-                .background(Brush.horizontalGradient(listOf(Color(0xFF4CAF50), Color(0xFFE8F5E9))))
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxWidth()
+                .padding(vertical = 4.dp)
+                .shadow(6.dp, RoundedCornerShape(8.dp)),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
         ) {
-            val interactionSource = remember { MutableInteractionSource() }
-            val isPressed by interactionSource.collectIsPressedAsState()
-            val scale by animateFloatAsState(if (isPressed) 1.1f else 1f)
-            IconButton(
-                onClick = {},
-                interactionSource = interactionSource,
-                modifier = Modifier.scale(scale)
+            Row(
+                modifier = Modifier
+                    .background(Brush.horizontalGradient(listOf(Color(0xFF4CAF50), Color(0xFFE8F5E9))))
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Live", tint = Color(0xFF4CAF50))
+                val interactionSource = remember { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val scale by animateFloatAsState(if (isPressed) 1.1f else 1f)
+                IconButton(
+                    onClick = {
+                        // Share workout
+                        val shareText = "I'm working out on FitGlide! Current steps: ${trackedSteps.toInt()}"
+                        val intent = Intent(Intent.ACTION_SEND).apply {
+                            type = "text/plain"
+                            putExtra(Intent.EXTRA_TEXT, shareText)
+                        }
+                        context.startActivity(Intent.createChooser(intent, "Share Workout"))
+                    },
+                    interactionSource = interactionSource,
+                    modifier = Modifier.scale(scale)
+                ) {
+                    Icon(Icons.Default.Share, contentDescription = "Share Workout", tint = Color(0xFF4CAF50))
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "User $userId is working out now (${trackedSteps.toInt()} steps)",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+                Button(
+                    onClick = { viewModel.postCheer(userId, "Great job!") },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+                ) { Text("Cheer Now") }
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(
-                text = "User $userId is walking now (5k steps)",
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f)
-            )
-            Button(
-                onClick = { viewModel.postCheer(userId, "Great job!") },
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-            ) { Text("Cheer Now") }
         }
     }
 }

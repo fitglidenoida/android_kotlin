@@ -15,6 +15,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +28,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -59,7 +63,7 @@ fun SleepScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFFFFFFFF))
+                    .background(MaterialTheme.colorScheme.background)
                     .padding(16.dp)
                     .verticalScroll(scrollState),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -68,7 +72,7 @@ fun SleepScreen(
                     text = "Hey $userName, Rest Up!",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
@@ -77,113 +81,192 @@ fun SleepScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = { selectedDate = selectedDate.minusDays(1) }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Previous Day", tint = Color(0xFF00C4B4))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Previous Day",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                     Text(
                         text = selectedDate.format(DateTimeFormatter.ofPattern("MMM dd, yyyy")),
                         fontSize = 16.sp,
-                        color = Color(0xFF212121)
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                     IconButton(onClick = { selectedDate = selectedDate.plusDays(1) }) {
-                        Icon(Icons.Default.ArrowForward, contentDescription = "Next Day", tint = Color(0xFF00C4B4))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward,
+                            contentDescription = "Next Day",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
 
-                SleepScoreArc(
-                    score = sleepData.score,
-                    debt = sleepData.debt,
-                    injuryRisk = sleepData.injuryRisk,
-                    onClick = { showDetails = true }
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                AchievementCard(streak = sleepData.streak)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    SleepTimeArc("Suggested", sleepData.restTime, 10f, Color(0xFF4CAF50))
-                    SleepTimeArc("Slept", sleepData.actualSleepTime, sleepData.restTime, Color(0xFF42A5F5))
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "Sleep Stages",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
-                )
-                SleepStagesArcs(stages = sleepData.stages)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(2.dp, Color(0xFF4CAF50)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .padding(12.dp)
-                            .fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally // Center-align title
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                Icons.Default.Bedtime,
-                                contentDescription = "Sleep",
-                                tint = Color(0xFF4CAF50),
-                                modifier = Modifier.size(24.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = "Actual Sleep Data",
-                                fontSize = 16.sp,
-                                color = Color(0xFF212121),
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceEvenly
+                if (sleepData == null) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "Loading sleep data...",
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                } else {
+                    if (sleepData?.insights?.any { it.contains("date of birth", ignoreCase = true) } == true) {
+                        Text(
+                            text = sleepData?.insights?.firstOrNull() ?: "Error fetching sleep data",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = { navController.navigate("profile") },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
-                            Text(
-                                text = "Bedtime: ${sleepData.bedtime}",
-                                fontSize = 14.sp,
-                                color = Color(0xFF212121)
-                            )
-                            Text(
-                                text = "Wake Time: ${sleepData.alarm}",
-                                fontSize = 14.sp,
-                                color = Color(0xFF212121)
-                            )
+                            Text("Update Profile", color = MaterialTheme.colorScheme.onPrimary)
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                    } else if (sleepData?.score == 0f && sleepData?.insights?.isNotEmpty() == true) {
+                        Text(
+                            text = sleepData?.insights?.firstOrNull() ?: "No sleep recorded",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
+
+                    SleepScoreArc(
+                        score = sleepData?.score ?: 0f,
+                        debt = sleepData?.debt ?: "0h0m",
+                        injuryRisk = sleepData?.injuryRisk ?: 0f,
+                        onClick = { showDetails = true }
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    AchievementCard(streak = sleepData?.streak ?: 0)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        SleepTimeArc("Suggested", sleepData?.restTime ?: 8f, 10f, MaterialTheme.colorScheme.primary)
+                        SleepTimeArc("Slept", sleepData?.actualSleepTime ?: 0f, sleepData?.restTime ?: 10f, MaterialTheme.colorScheme.secondary)
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Sleep Stages",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    SleepStagesArcs(stages = if (sleepData?.stages.isNullOrEmpty()) listOf(
+                        SleepStage(0, "Light"),
+                        SleepStage(0, "Deep"),
+                        SleepStage(0, "REM")
+                    ) else sleepData?.stages ?: emptyList())
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary),
+                        modifier = Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.surface
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .fillMaxWidth(),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    Icons.Default.Bedtime,
+                                    contentDescription = "Sleep",
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "Actual Sleep Data",
+                                    fontSize = 16.sp,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceEvenly
+                            ) {
+                                Text(
+                                    text = "Bedtime: ${sleepData?.bedtime ?: "N/A"}",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Wake Time: ${sleepData?.alarm ?: "N/A"}${if (sleepData?.alarm == "8:00 AM") " (default)" else ""}",
+                                    fontSize = 14.sp,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
                         }
                     }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                Text(
-                    text = "Insights",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
-                )
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(sleepData.insights) { insight ->
-                        InsightCard(text = insight)
+                    Text(
+                        text = "Sleep Score",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = sleepData?.scoreLegend?.overallScoreDescription ?: "No data",
+                        fontSize = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.padding(8.dp)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = "Insights",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    if (sleepData?.insights.isNullOrEmpty()) {
+                        Text(
+                            text = "Nothing to show here",
+                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    } else {
+                        LazyRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(sleepData?.insights ?: emptyList()) { insight ->
+                                InsightCard(
+                                    text = insight,
+                                    onClick = {
+                                        if (insight.contains("update your date of birth", ignoreCase = true)) {
+                                            navController.navigate("profile")
+                                        }
+                                    }
+                                )
+                            }
+                        }
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
-                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            if (showDetails) {
+            if (showDetails && sleepData != null) {
                 SleepDetailsOverlay(
-                    sleepData = sleepData,
+                    sleepData = sleepData!!,
                     onDismiss = { showDetails = false }
                 )
             }
@@ -191,7 +274,8 @@ fun SleepScreen(
             if (showSettings) {
                 ModalBottomSheet(
                     onDismissRequest = { showSettings = false },
-                    sheetState = modalSheetState
+                    sheetState = modalSheetState,
+                    containerColor = MaterialTheme.colorScheme.surface
                 ) {
                     SleepSettingsContent(
                         viewModel = viewModel,
@@ -206,11 +290,15 @@ fun SleepScreen(
                     .align(Alignment.TopEnd)
                     .padding(16.dp)
             ) {
-                Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color(0xFF00C4B4))
+                Icon(
+                    Icons.Default.Settings,
+                    contentDescription = "Settings",
+                    tint = MaterialTheme.colorScheme.primary
+                )
             }
 
             AnimatedVisibility(
-                visible = sleepData.challengeActive && !challengeClaimed,
+                visible = sleepData?.challengeActive == true && !challengeClaimed,
                 enter = fadeIn(animationSpec = tween(500)),
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
@@ -219,9 +307,13 @@ fun SleepScreen(
                 Button(
                     onClick = { challengeClaimed = true /* TODO: Claim logic */ },
                     shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFF5722))
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                 ) {
-                    Text("Claim Goal", color = Color.White, fontSize = 14.sp)
+                    Text(
+                        "Claim Goal",
+                        color = MaterialTheme.colorScheme.onSecondary,
+                        fontSize = 14.sp
+                    )
                 }
             }
         }
@@ -230,6 +322,12 @@ fun SleepScreen(
 
 @Composable
 fun SleepScoreArc(score: Float, debt: String, injuryRisk: Float, onClick: () -> Unit) {
+    val density = LocalDensity.current
+    val strokeWidthPx = with(density) { 10.dp.toPx() }
+    val arcOffsetPx = with(density) { 10.dp.toPx() }
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier
@@ -238,25 +336,25 @@ fun SleepScoreArc(score: Float, debt: String, injuryRisk: Float, onClick: () -> 
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.size(180.dp)) {
-                val radius = size.width / 2 - 10.dp.toPx()
+                val radius = size.width / 2 - arcOffsetPx
                 val cutWidth = 60f
                 drawArc(
-                    color = Color(0xFF757575),
+                    color = onSurfaceVariant,
                     startAngle = 120f,
                     sweepAngle = 360f - cutWidth,
                     useCenter = false,
                     topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                     size = Size(radius * 2, radius * 2),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 10.dp.toPx(), cap = StrokeCap.Round)
+                    style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                 )
                 drawArc(
-                    color = Color(0xFF4CAF50),
+                    color = primaryColor,
                     startAngle = 120f,
                     sweepAngle = (360f - cutWidth) * (score / 100f),
                     useCenter = false,
                     topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                     size = Size(radius * 2, radius * 2),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 10.dp.toPx(), cap = StrokeCap.Round)
+                    style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                 )
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -264,7 +362,7 @@ fun SleepScoreArc(score: Float, debt: String, injuryRisk: Float, onClick: () -> 
                     Icon(
                         imageVector = Icons.Default.Bedtime,
                         contentDescription = "Moon",
-                        tint = Color(0xFF42A5F5),
+                        tint = MaterialTheme.colorScheme.secondary,
                         modifier = Modifier
                             .size(36.dp)
                             .offset(x = 0.dp, y = 36.dp)
@@ -275,7 +373,7 @@ fun SleepScoreArc(score: Float, debt: String, injuryRisk: Float, onClick: () -> 
                     text = "${score.toInt()}",
                     fontSize = 36.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -283,20 +381,28 @@ fun SleepScoreArc(score: Float, debt: String, injuryRisk: Float, onClick: () -> 
         Text(
             text = "Debt: $debt | Risk: ${injuryRisk}%",
             fontSize = 16.sp,
-            color = Color(0xFF212121)
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
 
 @Composable
 fun SleepStagesArcs(stages: List<SleepStage>) {
+    val density = LocalDensity.current
+    val strokeWidthPx = with(density) { 5.dp.toPx() }
+    val arcOffsetPx = with(density) { 5.dp.toPx() }
+    val colors = listOf(
+        MaterialTheme.colorScheme.primary,
+        MaterialTheme.colorScheme.secondary,
+        MaterialTheme.colorScheme.tertiary
+    )
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .height(100.dp),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        val colors = listOf(Color(0xFF42A5F5), Color(0xFF9575CD), Color(0xFF7E57C2))
         val totalDuration = stages.sumOf { it.duration }.toFloat()
         stages.forEachIndexed { index, stage ->
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -304,31 +410,31 @@ fun SleepStagesArcs(stages: List<SleepStage>) {
                     modifier = Modifier
                         .size(80.dp)
                         .clip(CircleShape)
-                        .background(Color(0xFFE0E0E0)),
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
                     contentAlignment = Alignment.Center
                 ) {
                     Canvas(modifier = Modifier.size(80.dp)) {
-                        val radius = size.width / 2 - 5.dp.toPx()
+                        val radius = size.width / 2 - arcOffsetPx
                         drawArc(
                             color = colors[index % colors.size],
                             startAngle = -90f,
-                            sweepAngle = 360f * (stage.duration / totalDuration),
+                            sweepAngle = if (totalDuration > 0) 360f * (stage.duration / totalDuration) else 0f,
                             useCenter = false,
-                            topLeft = Offset(size.width / 2 - radius - 5.dp.toPx(), size.height / 2 - radius - 5.dp.toPx()),
-                            size = Size((radius + 5.dp.toPx()) * 2, (radius + 5.dp.toPx()) * 2),
-                            style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round)
+                            topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
+                            size = Size(radius * 2, radius * 2),
+                            style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                         )
                     }
                     Text(
                         text = "${stage.duration}m",
                         fontSize = 16.sp,
-                        color = Color(0xFF212121)
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
                 Text(
                     text = stage.type,
                     fontSize = 12.sp,
-                    color = Color(0xFF212121),
+                    color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center
                 )
             }
@@ -338,42 +444,47 @@ fun SleepStagesArcs(stages: List<SleepStage>) {
 
 @Composable
 fun SleepTimeArc(label: String, value: Float, max: Float, color: Color) {
+    val density = LocalDensity.current
+    val strokeWidthPx = with(density) { 5.dp.toPx() }
+    val arcOffsetPx = with(density) { 5.dp.toPx() }
+    val onSurfaceVariant = MaterialTheme.colorScheme.onSurfaceVariant
+
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
             modifier = Modifier.size(100.dp),
             contentAlignment = Alignment.Center
         ) {
             Canvas(modifier = Modifier.size(80.dp)) {
-                val radius = size.width / 2 - 5.dp.toPx()
+                val radius = size.width / 2 - arcOffsetPx
                 drawArc(
-                    color = Color(0xFF757575),
+                    color = onSurfaceVariant,
                     startAngle = -90f,
                     sweepAngle = 360f,
                     useCenter = false,
                     topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                     size = Size(radius * 2, radius * 2),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round)
+                    style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                 )
                 drawArc(
                     color = color,
                     startAngle = -90f,
-                    sweepAngle = 360f * (value / max),
+                    sweepAngle = if (max > 0) 360f * (value / max) else 0f,
                     useCenter = false,
                     topLeft = Offset(size.width / 2 - radius, size.height / 2 - radius),
                     size = Size(radius * 2, radius * 2),
-                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round)
+                    style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
                 )
             }
             Text(
                 text = if (label == "Slept") formatSleepTime(value) else "${String.format("%.1f", value)}h",
                 fontSize = 16.sp,
-                color = Color(0xFF212121)
+                color = MaterialTheme.colorScheme.onSurface
             )
         }
         Text(
             text = label,
             fontSize = 14.sp,
-            color = Color(0xFF212121)
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }
@@ -383,21 +494,21 @@ fun AchievementCard(streak: Int) {
     if (streak > 0) {
         Surface(
             shape = RoundedCornerShape(8.dp),
-            color = Color(0xFFFFF3E0),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(8.dp)
+                .padding(8.dp),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
         ) {
             Row(
                 modifier = Modifier
-                    .background(Brush.linearGradient(listOf(Color(0xFFFFD700), Color(0xFFFFA500))))
+                    .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.secondary)))
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
                     imageVector = Icons.Default.Shield,
                     contentDescription = "Achievement",
-                    tint = Color(0xFF212121),
+                    tint = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.size(24.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
@@ -412,7 +523,7 @@ fun AchievementCard(streak: Int) {
                     }",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF212121)
+                    color = MaterialTheme.colorScheme.onPrimary
                 )
             }
         }
@@ -420,18 +531,19 @@ fun AchievementCard(streak: Int) {
 }
 
 @Composable
-fun InsightCard(text: String) {
+fun InsightCard(text: String, onClick: () -> Unit) {
     Surface(
         shape = RoundedCornerShape(8.dp),
-        color = Color(0xFFE8F5E9),
         modifier = Modifier
             .width(200.dp)
             .padding(8.dp)
+            .clickable(onClick = onClick),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.8f)
     ) {
         Text(
             text = text,
             fontSize = 14.sp,
-            color = Color(0xFF424242),
+            color = MaterialTheme.colorScheme.onSurface,
             modifier = Modifier.padding(16.dp)
         )
     }
@@ -447,22 +559,55 @@ fun SleepDetailsOverlay(sleepData: SleepDataUi, onDismiss: () -> Unit) {
     ) {
         Surface(
             shape = RoundedCornerShape(16.dp),
-            color = Color.White,
             modifier = Modifier
                 .align(Alignment.Center)
                 .padding(16.dp)
-                .width(300.dp)
+                .width(300.dp),
+            color = MaterialTheme.colorScheme.surface
         ) {
             Column(
                 modifier = Modifier.padding(16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("Sleep Details", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Sleep Details",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
                 Spacer(modifier = Modifier.height(16.dp))
-                Text("Debt: ${sleepData.debt}", fontSize = 16.sp)
-                Text("Injury Risk: ${sleepData.injuryRisk}%", fontSize = 16.sp)
-                Text("Rest Tonight: ${sleepData.restTime}h", fontSize = 16.sp)
-                Text("Slept Last Night: ${formatSleepTime(sleepData.actualSleepTime)}", fontSize = 16.sp)
+                Text(
+                    "Debt: ${sleepData.debt}",
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    "Injury Risk: ${sleepData.injuryRisk}%",
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    "Rest Tonight: ${sleepData.restTime}h",
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    "Slept Last Night: ${formatSleepTime(sleepData.actualSleepTime)}",
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Score Explanation",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    sleepData.scoreLegend.overallScoreDescription,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }

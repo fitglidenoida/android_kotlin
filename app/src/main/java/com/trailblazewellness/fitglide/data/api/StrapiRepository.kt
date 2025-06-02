@@ -5,7 +5,11 @@ import com.trailblazewellness.fitglide.auth.AuthRepository
 import com.trailblazewellness.fitglide.data.healthconnect.SleepData
 import com.trailblazewellness.fitglide.data.healthconnect.WorkoutData
 import com.trailblazewellness.fitglide.presentation.meals.*
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
 import retrofit2.Response
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -142,6 +146,8 @@ class StrapiRepository(
         sportType: String,
         weekNumber: Int,
         exercises: List<StrapiApi.ExerciseId>,
+        exerciseOrder: List<String>,
+        isTemplate: Boolean,
         token: String
     ): Response<StrapiApi.WorkoutResponse> {
         val userId = authRepository.getAuthState().getId() ?: "unknown"
@@ -153,8 +159,9 @@ class StrapiRepository(
             totalTimePlanned = totalTimePlanned,
             caloriesPlanned = caloriesPlanned,
             sportType = sportType,
-            weekNumber = weekNumber,
             exercises = exercises,
+            exerciseOrder = exerciseOrder,
+            isTemplate = isTemplate,
             usersPermissionsUser = StrapiApi.UserId(userId)
         )
         val body = StrapiApi.WorkoutBody(request)
@@ -162,8 +169,8 @@ class StrapiRepository(
 
         val existingPlans = getWorkoutPlans(userId, token)
         return if (existingPlans.isSuccessful && existingPlans.body()?.data?.isNotEmpty() == true) {
-            val documentId = existingPlans.body()!!.data.first().id
-            Log.d(TAG, "Updating existing workout plan with id: $documentId")
+            val documentId = existingPlans.body()!!.data.first().documentId
+            Log.d(TAG, "Updating existing workout plan with documentId: $documentId")
             strapiApi.updateWorkout(documentId, body, token).also { response ->
                 logResponse("updateWorkout", response)
             }
@@ -175,12 +182,22 @@ class StrapiRepository(
         }
     }
 
+    suspend fun postWorkout(body: StrapiApi.WorkoutBody, token: String): Response<StrapiApi.WorkoutResponse> {
+        Log.d("StrapiRepository", "Posting workout: $body")
+        val response = strapiApi.postWorkout(body, token)
+        Log.d("StrapiRepository", "postWorkout: success=${response.isSuccessful}, code=${response.code()}, body=${response.body()?.toString()}")
+        return response
+    }
+
     suspend fun getWorkoutPlans(userId: String, token: String): Response<StrapiApi.WorkoutListResponse> {
-        val filters = mapOf("filters[users_permissions_user][id][\$eq]" to userId)
-        Log.d(TAG, "Fetching workout plans with filters: $filters")
-        return strapiApi.getWorkouts(filters, token).also { response ->
-            logResponse("getWorkouts", response)
-        }
+        val filters = mapOf(
+            "filters[users_permissions_user][id][\$eq]" to userId,
+            "populate" to "exercises"
+        )
+        Log.d("StrapiRepository", "Fetching workout plans with filters: $filters")
+        val response = strapiApi.getWorkouts(filters, token)
+        Log.d("StrapiRepository", "getWorkoutPlans: success=${response.isSuccessful}, code=${response.code()}, body=${response.body()?.toString()}")
+        return response
     }
 
     // Workout Logs
@@ -228,6 +245,46 @@ class StrapiRepository(
         }
     }
 
+    // Weight Loss Stories
+    suspend fun getWeightLossStories(token: String): Response<StrapiApi.WeightLossStoryListResponse> {
+        Log.d(TAG, "Fetching all weight loss stories")
+        return strapiApi.getWeightLossStories("users_permissions_user", token).also { response ->
+            logResponse("getWeightLossStories", response)
+        }
+    }
+
+    suspend fun getWeightLossStoriesForUser(userId: String, token: String): Response<StrapiApi.WeightLossStoryListResponse> {
+        Log.d(TAG, "Fetching weight loss stories for userId: $userId")
+        return strapiApi.getWeightLossStoriesForUser(userId, "users_permissions_user", token).also { response ->
+            logResponse("getWeightLossStoriesForUser", response)
+        }
+    }
+
+    suspend fun createWeightLossStory(request: StrapiApi.WeightLossStoryRequest, token: String): Response<StrapiApi.WeightLossStoryResponse> {
+        val body = StrapiApi.WeightLossStoryBody(request)
+        Log.d(TAG, "Creating weight loss story: $body with token: $token")
+        return strapiApi.postWeightLossStory(body, token).also { response ->
+            logResponse("createWeightLossStory", response)
+        }
+    }
+
+    suspend fun updateWeightLossStoryVisibility(id: String, visibility: String, token: String): Response<StrapiApi.WeightLossStoryResponse> {
+        val request = StrapiApi.WeightLossStoryRequest(
+            storyId = "", // Not needed for update
+            thenWeight = 0.0, // Not updating these fields
+            nowWeight = 0.0,
+            weightLost = 0.0,
+            storyText = "", // Not updating storyText
+            usersPermissionsUser = StrapiApi.UserId(""), // Not updating user
+            visibility = visibility
+        )
+        val body = StrapiApi.WeightLossStoryBody(request)
+        Log.d(TAG, "Updating visibility for weight loss story with id: $id to $visibility")
+        return strapiApi.updateWeightLossStory(id, body, token).also { response ->
+            logResponse("updateWeightLossStoryVisibility", response)
+        }
+    }
+
     // Health Vitals
     suspend fun getHealthVitals(userId: String, token: String): Response<StrapiApi.HealthVitalsListResponse> {
         Log.d(TAG, "Fetching health vitals for userId: $userId")
@@ -261,9 +318,8 @@ class StrapiRepository(
     }
 
     suspend fun updateUserProfile(userId: String, data: StrapiApi.UserProfileRequest, token: String): Response<StrapiApi.UserProfileResponse> {
-        val body = StrapiApi.UserProfileBody(data)
-        Log.d(TAG, "Updating user profile for userId: $userId, data: $body with token: $token")
-        return strapiApi.updateUserProfile(userId, body, token).also { response ->
+        Log.d(TAG, "Updating user profile for userId: $userId, data: $data with token: $token")
+        return strapiApi.updateUserProfile(userId, data, token).also { response ->
             logResponse("updateUserProfile", response)
         }
     }
@@ -318,7 +374,7 @@ class StrapiRepository(
     suspend fun postDietPlan(body: DietPlanRequest, token: String): Response<StrapiApi.DietPlanResponse> {
         val dietPlanBody = StrapiApi.DietPlanBody(body)
         Log.d(TAG, "Posting diet plan: $dietPlanBody with token: $token")
-        val userId = body.userId.id ?: "unknown"
+        val userId = body.usersPermissionsUser.id ?: "unknown" // Fixed from body.userId.id
         val existingPlans = getDietPlan(userId, LocalDate.now(), token)
         if (existingPlans.isSuccessful) {
             existingPlans.body()?.data?.filter { it.active }?.forEach { plan ->
@@ -329,8 +385,8 @@ class StrapiRepository(
                     active = false,
                     pointsEarned = plan.pointsEarned,
                     dietGoal = plan.dietGoal,
-                    mealIds = plan.meals?.map { it.documentId } ?: emptyList(),
-                    userId = StrapiApi.UserId(userId)
+                    meals = plan.meals?.map { it.documentId } ?: emptyList(),
+                    usersPermissionsUser = StrapiApi.UserId(userId)
                 )
                 updateDietPlan(plan.documentId, updatedPlan, token)
             }
@@ -515,14 +571,74 @@ class StrapiRepository(
         }
     }
 
+    // Strava Integration
+    suspend fun initiateStravaAuth(state: String): Response<StrapiApi.StravaAuthResponse> {
+        Log.d(TAG, "Initiating Strava auth with state: $state")
+        return strapiApi.initiateStravaAuth(state = state).also { response ->
+            logResponse("initiateStravaAuth", response)
+        }
+    }
+
+    suspend fun exchangeStravaCode(code: String, token: String): Response<StrapiApi.StravaTokenResponse> {
+        val request = StrapiApi.StravaTokenRequest(code)
+        Log.d(TAG, "Exchanging Strava code: $code")
+        return strapiApi.exchangeStravaCode(request, token).also { response ->
+            logResponse("exchangeStravaCode", response)
+        }
+    }
+
+    // Desi Messages and Badges
     suspend fun getDesiMessages(token: String): Response<StrapiApi.DesiMessageResponse> {
-        return strapiApi.getDesiMessages("*", token)
+        Log.d(TAG, "Fetching desi messages")
+        return strapiApi.getDesiMessages("*", token).also { response ->
+            logResponse("getDesiMessages", response)
+        }
     }
 
     suspend fun getBadges(token: String): Response<StrapiApi.BadgeListResponse> {
-        return strapiApi.getBadges("*", token)
+        Log.d(TAG, "Fetching badges")
+        return strapiApi.getBadges("*", token).also { response ->
+            logResponse("getBadges", response)
+        }
     }
 
+    suspend fun getExercises(token: String): Response<StrapiApi.ExerciseListResponse> {
+        Log.d(TAG, "Fetching all exercises")
+        val allExercises = mutableListOf<StrapiApi.ExerciseEntry>()
+        var page = 1
+        val pageSize = 100
+
+        do {
+            val response = strapiApi.getExercises(pageSize, page, token)
+            logResponse("getExercises page $page", response)
+            if (response.isSuccessful) {
+                val exercises = response.body()?.data ?: emptyList()
+                allExercises.addAll(exercises)
+                page++
+            } else {
+                Log.e(TAG, "Failed to fetch page $page: ${response.code()} - ${response.errorBody()?.string()}")
+                break
+            }
+        } while (response.body()?.data?.isNotEmpty() == true)
+
+        Log.d(TAG, "Fetched total ${allExercises.size} exercises")
+        return Response.success(StrapiApi.ExerciseListResponse(allExercises))
+    }
+
+    suspend fun uploadFile(file: File, token: String): Response<List<StrapiApi.MediaData>> {
+        val requestBody = file.asRequestBody("image/*".toMediaType())
+        val part = MultipartBody.Part.createFormData("files", file.name, requestBody)
+        Log.d(TAG, "Uploading file: ${file.name} with token: $token")
+        return strapiApi.uploadFile(part, token).also { response ->
+            if (response.isSuccessful) {
+                Log.d(TAG, "uploadFile successful: ${response.code()} - Body: ${response.body()}")
+            } else {
+                Log.e(TAG, "uploadFile failed: ${response.code()} - Error: ${response.errorBody()?.string()}")
+            }
+        }
+    }
+
+    // Utility
     private fun <T> logResponse(method: String, response: Response<T>) {
         if (response.isSuccessful) {
             Log.d(TAG, "$method successful: ${response.code()} - Body: ${response.body()}")

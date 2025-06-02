@@ -1,5 +1,8 @@
 package com.trailblazewellness.fitglide.presentation
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -7,6 +10,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -17,6 +21,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -33,36 +38,47 @@ import kotlinx.coroutines.launch
 @Composable
 fun LoginScreen(
     navController: NavController,
-    googleAuthManager: GoogleAuthManager,
-    authRepository: AuthRepository,
-    onLoginSuccess: (() -> Unit)? = null
+    googleAuthManager: GoogleAuthManager?,
+    authRepository: AuthRepository?
 ) {
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var isEmailPasswordExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val isDarkTheme = isSystemInDarkTheme()
 
-    // Check for persistent login
-    LaunchedEffect(Unit) {
-        if (authRepository.isLoggedIn()) {
-            Log.d("LoginScreen", "User is already logged in, triggering onLoginSuccess")
-            snackbarHostState.showSnackbar("Welcome back!")
-            onLoginSuccess?.invoke()
+    // Check if user is already logged in
+    LaunchedEffect(authRepository) {
+        if (authRepository?.isLoggedIn() == true) {
+            Log.d("LoginScreen", "User is logged in, navigating to splash")
+            navController.navigate("splash") {
+                popUpTo("login") { inclusive = true }
+                launchSingleTop = true
+            }
         }
     }
 
+    // Launcher for Google Sign-In
     val launcher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
+        if (googleAuthManager == null || authRepository == null) {
+            Log.e("LoginScreen", "Google sign-in failed: googleAuthManager or authRepository is null")
+            coroutineScope.launch {
+                snackbarHostState.showSnackbar("Login failed: Dependencies not ready")
+            }
+            return@rememberLauncherForActivityResult
+        }
         Log.d("LoginScreen", "Sign-in result received: resultCode=${result.resultCode}, data=${result.data?.extras}")
         val account = googleAuthManager.handleSignInResult(result.data)
         coroutineScope.launch {
             val success = authRepository.loginWithGoogle(account?.idToken)
             if (success && authRepository.isLoggedIn()) {
-                Log.d("LoginScreen", "Google sign-in successful, triggering onLoginSuccess")
+                Log.d("LoginScreen", "Google sign-in successful")
                 snackbarHostState.showSnackbar("Login successful!")
-                onLoginSuccess?.invoke()
+                navController.navigate("splash") {
+                    popUpTo("login") { inclusive = true }
+                    launchSingleTop = true
+                }
             } else {
                 Log.e("LoginScreen", "Google sign-in failed")
                 snackbarHostState.showSnackbar("Google login failed.")
@@ -77,8 +93,8 @@ fun LoginScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
                     .padding(padding)
-                    .background(Color(0xFFF5F5F5).copy(alpha = 0.9f))
                     .padding(16.dp)
             ) {
                 Column(
@@ -87,7 +103,7 @@ fun LoginScreen(
                     modifier = Modifier.fillMaxSize()
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.fitglide_logo_tweaked),
+                        painter = painterResource(id = R.drawable.fitglide_logo_tweaked1),
                         contentDescription = "FitGlide Logo",
                         modifier = Modifier.size(250.dp)
                     )
@@ -100,9 +116,15 @@ fun LoginScreen(
                     )
                     Spacer(modifier = Modifier.height(20.dp))
 
-                    // Google Sign-In Button with White Background
                     Button(
                         onClick = {
+                            if (googleAuthManager == null) {
+                                Log.e("LoginScreen", "Google sign-in failed: googleAuthManager is null")
+                                coroutineScope.launch {
+                                    snackbarHostState.showSnackbar("Login failed: Dependencies not ready")
+                                }
+                                return@Button
+                            }
                             Log.d("LoginScreen", "Launching Google Sign-In")
                             launcher.launch(googleAuthManager.startSignIn())
                         },
@@ -110,8 +132,8 @@ fun LoginScreen(
                             .fillMaxWidth()
                             .height(48.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color.White, // White background
-                            contentColor = Color.Black // Black text/icon
+                            containerColor = if (isDarkTheme) Color.Black else Color.White,
+                            contentColor = MaterialTheme.colorScheme.primary
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
@@ -120,7 +142,15 @@ fun LoginScreen(
                             horizontalArrangement = Arrangement.Center
                         ) {
                             Image(
-                                painter = painterResource(id = R.drawable.google_color_icon),
+                                painter = painterResource(
+                                    id = try {
+                                        context.resources.getIdentifier("google_color_icon", "drawable", context.packageName)
+                                        R.drawable.google_color_icon
+                                    } catch (e: Exception) {
+                                        Log.e("LoginScreen", "Google icon not found: ${e.message}")
+                                        android.R.drawable.ic_dialog_info
+                                    }
+                                ),
                                 contentDescription = "Google Logo",
                                 modifier = Modifier.size(24.dp)
                             )
@@ -133,7 +163,8 @@ fun LoginScreen(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // Collapsible Email/Password Section
+                    // Commented out email/password login for Google Sign-In only
+                    /*
                     Card(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -149,7 +180,7 @@ fun LoginScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { isEmailPasswordExpanded = !isEmailPasswordExpanded },
+                                    .clickable { },
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
@@ -161,7 +192,8 @@ fun LoginScreen(
                                 Icon(
                                     imageVector = Icons.Default.ArrowDropDown,
                                     contentDescription = "Expand/Collapse",
-                                    modifier = Modifier.size(24.dp)
+                                    modifier = Modifier.size(24.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface
                                 )
                             }
 
@@ -172,7 +204,18 @@ fun LoginScreen(
                                     onValueChange = { email = it },
                                     label = { Text("Email") },
                                     modifier = Modifier.fillMaxWidth(),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                    )
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -182,19 +225,47 @@ fun LoginScreen(
                                     label = { Text("Password") },
                                     modifier = Modifier.fillMaxWidth(),
                                     visualTransformation = PasswordVisualTransformation(),
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password)
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        focusedLabelColor = MaterialTheme.colorScheme.primary,
+                                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                                    )
                                 )
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 Button(
                                     onClick = {
+                                        if (authRepository == null) {
+                                            Log.e("LoginScreen", "Email login failed: authRepository is null")
+                                            coroutineScope.launch {
+                                                snackbarHostState.showSnackbar("Login failed: Dependencies not ready")
+                                            }
+                                            return@Button
+                                        }
                                         coroutineScope.launch {
-                                            authRepository.loginWithCredentials(email, password)
-                                            if (authRepository.isLoggedIn()) {
-                                                snackbarHostState.showSnackbar("Login successful!")
-                                                onLoginSuccess?.invoke()
-                                            } else {
-                                                snackbarHostState.showSnackbar("Login failed.")
+                                            try {
+                                                authRepository.loginWithCredentials(email, password)
+                                                if (authRepository.isLoggedIn()) {
+                                                    Log.d("LoginScreen", "Email login successful")
+                                                    snackbarHostState.showSnackbar("Login successful!")
+                                                    navController.navigate("splash") {
+                                                        popUpTo("login") { inclusive = true }
+                                                        launchSingleTop = true
+                                                    }
+                                                } else {
+                                                    Log.e("LoginScreen", "Email login failed")
+                                                    snackbarHostState.showSnackbar("Login failed.")
+                                                }
+                                            } catch (e: Exception) {
+                                                Log.e("LoginScreen", "Email login failed: ${e.message}", e)
+                                                snackbarHostState.showSnackbar("Login failed: ${e.message}")
                                             }
                                         }
                                     },
@@ -207,13 +278,17 @@ fun LoginScreen(
                                 }
                                 Spacer(modifier = Modifier.height(8.dp))
 
-                                TextButton(onClick = { /* TODO: Forgot Password */ }) {
+                                TextButton(onClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://accounts.google.com/signin/v2/recoveryidentifier"))
+                                    context.startActivity(intent)
+                                }) {
                                     Text("Forgot Password?", color = MaterialTheme.colorScheme.primary)
                                 }
                             }
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
+                    */
 
                     TextButton(onClick = { navController.navigate("onboarding") }) {
                         Text("Need an account? Sign up", color = MaterialTheme.colorScheme.primary)

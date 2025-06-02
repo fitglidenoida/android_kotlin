@@ -4,8 +4,8 @@ import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.compose.runtime.mutableStateOf
-import androidx.health.connect.client.records.*
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.records.*
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import androidx.health.connect.client.units.Volume
@@ -17,6 +17,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
+import kotlin.math.sqrt
 import kotlin.reflect.KClass
 
 const val MIN_SUPPORTED_SDK = Build.VERSION_CODES.O_MR1
@@ -26,6 +27,8 @@ enum class HealthConnectAvailability {
     NOT_INSTALLED,
     NOT_SUPPORTED
 }
+
+data class HRVData(val sdnn: Float)
 
 class HealthConnectManager(private val context: Context) {
     var healthConnectClient: HealthConnectClient? = null
@@ -192,6 +195,7 @@ class HealthConnectManager(private val context: Context) {
 
         if (sessions.isEmpty()) {
             Log.d("HealthConnectManager", "No sleep sessions for $date")
+            // Return default empty data if no sleep records found
             return SleepData(
                 total = Duration.ZERO,
                 deep = Duration.ZERO,
@@ -213,6 +217,20 @@ class HealthConnectManager(private val context: Context) {
         val light = total.dividedBy(3)
         val awake = total.dividedBy(10)
 
+        // Validation: Don't send invalid data (e.g., zero or negative values)
+        if (total.isZero || deep.isZero || rem.isZero || light.isZero || awake.isZero) {
+            Log.e("HealthConnectManager", "Invalid sleep data for $date. Skipping.")
+            return SleepData(
+                total = Duration.ZERO,
+                deep = Duration.ZERO,
+                rem = Duration.ZERO,
+                light = Duration.ZERO,
+                awake = Duration.ZERO,
+                start = LocalDateTime.of(date, java.time.LocalTime.of(22, 0)),
+                end = LocalDateTime.of(date.plusDays(1), java.time.LocalTime.of(6, 0))
+            )
+        }
+
         return SleepData(
             total = total,
             deep = deep,
@@ -226,68 +244,69 @@ class HealthConnectManager(private val context: Context) {
         }
     }
 
-    suspend fun readExerciseSessions(date: LocalDate): WorkoutData {
+    suspend fun readExerciseSessions(date: LocalDate): List<WorkoutData> {
         if (!checkWorkoutPermissions()) {
             Log.w("HealthConnectManager", "Missing workout permissions for $date")
-            return WorkoutData(null, null, null, null, null, null, "Unknown")
+            return emptyList()
         }
 
         val start = date.atStartOfDay(ZoneId.systemDefault()).toInstant()
         val end = date.plusDays(1).atStartOfDay(ZoneId.systemDefault()).toInstant()
         val exerciseSessions = readRecords(ExerciseSessionRecord::class, start, end)
-            .filter { LocalDateTime.ofInstant(it.startTime, ZoneId.systemDefault()).toLocalDate() == date }
-
-        Log.d("HealthConnectManager", "Exercise sessions for $date: ${exerciseSessions.size} found, types=${exerciseSessions.map { it.exerciseType }}")
-        exerciseSessions.forEach {
-            Log.d("HealthConnectManager", "Session: type=${it.exerciseType}, start=${it.startTime}, end=${it.endTime}, title=${it.title}, dataOrigin=${it.metadata.dataOrigin}")
-        }
+            .filter { session ->
+                LocalDateTime.ofInstant(session.startTime, ZoneId.systemDefault()).toLocalDate() == date
+            }
 
         if (exerciseSessions.isEmpty()) {
             Log.w("HealthConnectManager", "No exercise sessions for $date")
-            return WorkoutData(null, null, null, null, null, null, "Unknown")
+            return emptyList()
         }
 
         val distanceRecords = readRecords(DistanceRecord::class, start, end)
         val caloriesRecords = readRecords(TotalCaloriesBurnedRecord::class, start, end)
         val heartRateRecords = readRecords(HeartRateRecord::class, start, end)
 
-        val primarySession = exerciseSessions.find { it.exerciseType == 6 } ?: exerciseSessions.maxByOrNull {
-            Duration.between(it.startTime, it.endTime).toMinutes()
-        } ?: exerciseSessions.first()
+        return exerciseSessions.map { session ->
+            val sessionStart = LocalDateTime.ofInstant(session.startTime, ZoneId.systemDefault())
+            val sessionEnd = LocalDateTime.ofInstant(session.endTime, ZoneId.systemDefault())
+            val duration = Duration.between(session.startTime, session.endTime)
 
-        val duration = exerciseSessions.fold(Duration.ZERO) { acc, s -> acc.plus(Duration.between(s.startTime, s.endTime)) }
-        val distance = distanceRecords.filter {
-            exerciseSessions.any { session ->
-                it.startTime >= session.startTime && it.endTime <= session.endTime
-            }
-        }.sumOf { it.distance.inMeters }
-        val calories = caloriesRecords.filter {
-            exerciseSessions.any { session ->
-                it.startTime >= session.startTime && it.endTime <= session.endTime
-            }
-        }.sumOf { it.energy.inKilocalories }
-        val heartRates = heartRateRecords.filter {
-            exerciseSessions.any { session ->
-                it.startTime >= session.startTime && it.endTime <= session.endTime
-            }
-        }.flatMap { it.samples }.map { it.beatsPerMinute }
-        val heartRateAvg = if (heartRates.isNotEmpty()) heartRates.average().toLong() else null
-        val type = when (primarySession.exerciseType) {
-            6 -> "Cycling"
-            1 -> "Running"
-            else -> "Cardio (Type ${primarySession.exerciseType})"
-        }
+            // Fetch distance for this session
+            val distance = distanceRecords.filter { record ->
+                record.startTime >= session.startTime && record.endTime <= session.endTime
+            }.sumOf { it.distance.inMeters }
 
-        return WorkoutData(
-            distance = distance.takeIf { it > 0.0 },
-            duration = duration,
-            calories = calories.takeIf { it > 0.0 },
-            heartRateAvg = heartRateAvg,
-            start = LocalDateTime.ofInstant(exerciseSessions.minByOrNull { it.startTime }?.startTime ?: start, ZoneId.systemDefault()),
-            end = LocalDateTime.ofInstant(exerciseSessions.maxByOrNull { it.endTime }?.endTime ?: end, ZoneId.systemDefault()),
-            type = type
-        ).also {
-            Log.d("HealthConnectManager", "Exercise data for $date: type=${it.type}, distance=${it.distance} m, calories=${it.calories} kcal, HR=${it.heartRateAvg}")
+            // Fetch calories for this session
+            val calories = caloriesRecords.filter { record ->
+                record.startTime >= session.startTime && record.endTime <= session.endTime
+            }.sumOf { it.energy.inKilocalories }
+
+            // Fetch heart rate for this session
+            val heartRates = heartRateRecords.filter { record ->
+                record.startTime >= session.startTime && record.endTime <= session.endTime
+            }.flatMap { it.samples }.map { it.beatsPerMinute }
+            val heartRateAvg = if (heartRates.isNotEmpty()) heartRates.average().toLong() else null
+
+            // Determine session type
+            val type = when (session.exerciseType) {
+                6 -> "Cycling"
+                1 -> "Running"
+                else -> "Cardio (Type ${session.exerciseType})"
+            }
+
+            WorkoutData(
+                distance = distance.takeIf { it > 0.0 },
+                duration = duration,
+                calories = calories.takeIf { it > 0.0 },
+                heartRateAvg = heartRateAvg,
+                start = sessionStart,
+                end = sessionEnd,
+                type = type
+            ).also {
+                Log.d("HealthConnectManager", "Session for $date: type=${it.type}, distance=${it.distance} m, calories=${it.calories} kcal, HR=${it.heartRateAvg}, start=${it.start}, end=${it.end}")
+            }
+        }.also {
+            Log.d("HealthConnectManager", "Exercise sessions for $date: ${it.size} found, types=${it.map { it.type }}")
         }
     }
 
@@ -337,6 +356,52 @@ class HealthConnectManager(private val context: Context) {
         return avg
     }
 
+    suspend fun readHeartRateStats(startTime: Instant, endTime: Instant): HeartRateStats? {
+        val records = readRecords(HeartRateRecord::class, startTime, endTime)
+        val heartRates = records.flatMap { it.samples }.map { it.beatsPerMinute }
+        return if (heartRates.isNotEmpty()) {
+            HeartRateStats(
+                average = heartRates.average().toLong(),
+                maximum = heartRates.maxOrNull()?.toLong() ?: 0L,
+                minimum = heartRates.minOrNull()?.toLong() ?: 0L
+            )
+        } else {
+            null
+        }
+    }
+
+    suspend fun readHRV(date: LocalDate): HRVData? {
+        val start = date.atStartOfDay(ZoneId.systemDefault()).toInstant()
+        val end = date.atTime(23, 59, 59, 999999999).atZone(ZoneId.systemDefault()).toInstant()
+        val hrRecords = readRecords(HeartRateRecord::class, start, end)
+
+        if (hrRecords.isEmpty()) {
+            Log.d("HealthConnectManager", "No heart rate records for HRV calculation on $date")
+            return null
+        }
+
+        // Estimate RR intervals from BPM (60/BPM * 1000 ms)
+        val rrIntervals = hrRecords.flatMap { record ->
+            record.samples.map { sample ->
+                val bpm = sample.beatsPerMinute
+                if (bpm > 0) 60_000f / bpm else null
+            }.filterNotNull()
+        }
+
+        if (rrIntervals.size < 2) {
+            Log.d("HealthConnectManager", "Insufficient heart rate samples for HRV calculation on $date")
+            return null
+        }
+
+        // Calculate SDNN (standard deviation of RR intervals)
+        val meanRR = rrIntervals.average().toFloat()
+        val variance = rrIntervals.map { rr -> (rr - meanRR) * (rr - meanRR) }.average().toFloat()
+        val sdnn = sqrt(variance)
+
+        Log.d("HealthConnectManager", "HRV SDNN for $date: $sdnn ms")
+        return HRVData(sdnn)
+    }
+
     suspend fun isTracking(): Boolean {
         Log.d("HealthConnectManager", "Checking tracking status - placeholder")
         return false
@@ -352,6 +417,8 @@ data class SleepData(
     val start: LocalDateTime,
     val end: LocalDateTime
 )
+
+data class HeartRateStats(val average: Long, val maximum: Long, val minimum: Long)
 
 data class WorkoutData(
     val distance: Double?,

@@ -7,10 +7,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -21,6 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
@@ -29,8 +29,12 @@ import com.trailblazewellness.fitglide.auth.AuthRepository
 import com.trailblazewellness.fitglide.presentation.home.HomeViewModel
 import com.trailblazewellness.fitglide.presentation.strava.StravaAuthViewModel
 import kotlinx.coroutines.launch
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 
-data class Achievement(val name: String, val description: String, val progress: Float)
+data class ActivityLogEntry(val description: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -47,15 +51,18 @@ fun ProfileScreen(
     var isHealthVitalsExpanded by remember { mutableStateOf(true) }
     var isFitnessBridgeExpanded by remember { mutableStateOf(false) }
     var isSetGoalsExpanded by remember { mutableStateOf(true) }
-    var isProgressTrendsExpanded by remember { mutableStateOf(false) }
-    var isHealthInsightsExpanded by remember { mutableStateOf(false) }
     var isSettingsExpanded by remember { mutableStateOf(false) }
     var showStrategyPopup by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
     val stravaAuthState by stravaAuthViewModel.authState.collectAsState()
     val isStravaConnected by stravaAuthViewModel.isStravaConnected.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
+    val scope = rememberCoroutineScope()
+    val datePickerState = rememberDatePickerState(
+        initialSelectedDateMillis = System.currentTimeMillis(),
+        yearRange = IntRange(1900, LocalDate.now().year)
+    )
 
     LaunchedEffect(stravaAuthState) {
         when (val state = stravaAuthState) {
@@ -80,20 +87,27 @@ fun ProfileScreen(
     val homeData by homeViewModel.homeData.collectAsState()
     val authState = authRepository.getAuthState()
     val userName = authState.userName ?: "User"
-    val totalSteps = homeData.watchSteps + homeData.manualSteps
+    val totalSteps = homeData.watchSteps + homeData.manualSteps + homeData.trackedSteps
+    val membershipStatus by remember { mutableStateOf("FitGlide Member") }
     val trackingStats = mapOf(
         "Steps" to totalSteps.toString(),
         "Sleep" to String.format("%.1f", homeData.sleepHours) + "h",
         "Calories" to homeData.caloriesBurned.toString()
     )
-    val achievements = listOf(
-        Achievement("Step Master", "Reach 10,000 steps", totalSteps / 10000f),
-        Achievement("Hydration Hero", "Drink 3L water", homeData.hydration / 3f)
-    )
     val activityLog = listOf(
-        "Logged $totalSteps steps today",
-        "Burned ${homeData.caloriesBurned} calories in workout"
+        ActivityLogEntry("Logged $totalSteps steps today"),
+        ActivityLogEntry("Burned ${homeData.caloriesBurned} calories in workout")
     )
+
+    // Validation for mandatory fields
+    val areHealthVitalsValid = profileData.weight != null &&
+            profileData.height != null &&
+            !profileData.gender.isNullOrEmpty() &&
+            !profileData.dob.isNullOrEmpty() &&
+            !profileData.activityLevel.isNullOrEmpty()
+
+    val areGoalsValid = profileData.weightLossGoal != null &&
+            !profileData.weightLossStrategy.isNullOrEmpty()
 
     FitGlideTheme {
         Scaffold(
@@ -144,7 +158,7 @@ fun ProfileScreen(
                                         color = MaterialTheme.colorScheme.onPrimary
                                     )
                                     Text(
-                                        text = "FitGlide Member",
+                                        text = membershipStatus,
                                         fontSize = 14.sp,
                                         color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f)
                                     )
@@ -273,84 +287,13 @@ fun ProfileScreen(
                             color = MaterialTheme.colorScheme.primary
                         )
                         Spacer(modifier = Modifier.height(8.dp))
-                        activityLog.forEach { activity ->
+                        activityLog.forEach { entry ->
                             Text(
-                                text = activity,
+                                text = entry.description,
                                 fontSize = 14.sp,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.padding(vertical = 4.dp)
                             )
-                        }
-                    }
-                }
-                item {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = "Achievements",
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LazyRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(achievements) { achievement ->
-                                Surface(
-                                    shape = RoundedCornerShape(8.dp),
-                                    color = MaterialTheme.colorScheme.surface
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(50.dp)
-                                                .clip(CircleShape)
-                                                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "🏆",
-                                                fontSize = 24.sp
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Column {
-                                            Text(
-                                                text = achievement.name,
-                                                fontSize = 14.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = achievement.description,
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.onSurface
-                                            )
-                                            Text(
-                                                text = "${(achievement.progress * 100).toInt()}% Complete",
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        IconButton(onClick = { /* TODO: Share achievement */ }) {
-                                            Icon(
-                                                imageVector = Icons.Default.Share,
-                                                contentDescription = "Share",
-                                                tint = MaterialTheme.colorScheme.primary
-                                            )
-                                        }
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -360,10 +303,32 @@ fun ProfileScreen(
                         isExpanded = isPersonalDataExpanded,
                         onToggle = { isPersonalDataExpanded = !isPersonalDataExpanded }
                     ) {
-                        EditableField(label = "First Name", value = profileData.firstName ?: "", onValueChange = { profileViewModel.profileData = profileData.copy(firstName = it) })
-                        EditableField(label = "Last Name", value = profileData.lastName ?: "", onValueChange = { profileViewModel.profileData = profileData.copy(lastName = it) })
-                        EditableField(label = "Mobile", value = profileData.mobile?.toString() ?: "", onValueChange = { profileViewModel.profileData = profileData.copy(mobile = it.toLongOrNull()) })
-                        EditableField(label = "Email", value = profileData.email ?: "", onValueChange = { profileViewModel.profileData = profileData.copy(email = it) })
+                        EditableField(
+                            label = "First Name",
+                            value = profileData.firstName ?: "",
+                            onValueChange = { profileViewModel.profileData = profileData.copy(firstName = it) },
+                            isMandatory = true
+                        )
+                        EditableField(
+                            label = "Last Name",
+                            value = profileData.lastName ?: "",
+                            onValueChange = { profileViewModel.profileData = profileData.copy(lastName = it) },
+                            isMandatory = true
+                        )
+//                        EditableField(
+//                            label = "Mobile",
+//                            value = profileData.mobile?.toString() ?: "",
+//                            onValueChange = { profileViewModel.profileData = profileData.copy(mobile = it.toLongOrNull()) },
+//                            keyboardType = KeyboardType.Number,
+//                            isNumeric = true,
+//                            isMandatory = true
+//                        )
+                        EditableField(
+                            label = "Email",
+                            value = profileData.email ?: "",
+                            onValueChange = { profileViewModel.profileData = profileData.copy(email = it) },
+                            isMandatory = true
+                        )
                         Spacer(modifier = Modifier.height(8.dp))
                         Button(
                             onClick = {
@@ -383,23 +348,40 @@ fun ProfileScreen(
                         isExpanded = isHealthVitalsExpanded,
                         onToggle = { isHealthVitalsExpanded = !isHealthVitalsExpanded }
                     ) {
-                        EditableField(label = "Weight (kg)", value = profileData.weight?.toString() ?: "") {
-                            profileViewModel.profileData = profileData.copy(weight = it.toDoubleOrNull())
-                        }
-                        EditableField(label = "Height (cm)", value = profileData.height?.toString() ?: "") {
-                            profileViewModel.profileData = profileData.copy(height = it.toDoubleOrNull())
-                        }
+                        EditableField(
+                            label = "Weight (kg)*",
+                            value = profileData.weight?.toString() ?: "",
+                            onValueChange = { profileViewModel.profileData = profileData.copy(weight = it.toDoubleOrNull()) },
+                            keyboardType = KeyboardType.Decimal,
+                            isNumeric = true,
+                            isMandatory = true
+                        )
+                        EditableField(
+                            label = "Height (cm)*",
+                            value = profileData.height?.toString() ?: "",
+                            onValueChange = { profileViewModel.profileData = profileData.copy(height = it.toDoubleOrNull()) },
+                            keyboardType = KeyboardType.Decimal,
+                            isNumeric = true,
+                            isMandatory = true
+                        )
                         DropdownField(
-                            label = "Gender",
+                            label = "Gender*",
                             value = profileData.gender ?: "",
                             options = listOf("", "Male", "Female"),
-                            onValueChange = { profileViewModel.profileData = profileData.copy(gender = it) }
+                            onValueChange = { profileViewModel.profileData = profileData.copy(gender = it) },
+                            isMandatory = true
                         )
-                        EditableField(label = "DOB (YYYY-MM-DD)", value = profileData.dob ?: "") {
-                            profileViewModel.profileData = profileData.copy(dob = it)
-                        }
+                        DatePickerField(
+                            label = "DOB (YYYY-MM-DD)*",
+                            value = profileData.dob ?: "",
+                            onValueChange = { profileViewModel.profileData = profileData.copy(dob = it) },
+                            showDatePicker = showDatePicker,
+                            onShowDatePicker = { showDatePicker = true },
+                            onDismissDatePicker = { showDatePicker = false },
+                            datePickerState = datePickerState
+                        )
                         DropdownField(
-                            label = "Activity Level",
+                            label = "Activity Level*",
                             value = profileData.activityLevel ?: "Sedentary (little/no exercise)",
                             options = listOf(
                                 "Sedentary (little/no exercise)",
@@ -408,7 +390,8 @@ fun ProfileScreen(
                                 "Heavy exercise (6-7 days/week)",
                                 "Very heavy exercise (Twice/day)"
                             ),
-                            onValueChange = { profileViewModel.profileData = profileData.copy(activityLevel = it) }
+                            onValueChange = { profileViewModel.profileData = profileData.copy(activityLevel = it) },
+                            isMandatory = true
                         )
                         Text(
                             text = "BMI: ${profileData.bmi?.let { String.format("%.2f", it) } ?: "N/A"}",
@@ -424,8 +407,15 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Button(
                             onClick = {
-                                profileViewModel.calculateMetrics()
+                                if (areHealthVitalsValid) {
+                                    profileViewModel.calculateMetrics()
+                                } else {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("All fields are required")
+                                    }
+                                }
                             },
+                            enabled = areHealthVitalsValid,
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
@@ -440,19 +430,15 @@ fun ProfileScreen(
                         onToggle = { isFitnessBridgeExpanded = !isFitnessBridgeExpanded }
                     ) {
                         FitnessBridgeToggle(
-                            label = "Health Connect",
-                            isEnabled = false,
-                            onToggle = { /* TODO: Toggle Health Connect sync */ }
-                        )
-                        FitnessBridgeToggle(
                             label = "Strava",
                             isEnabled = isStravaConnected,
                             onToggle = { enabled ->
                                 if (enabled) {
+                                    val userId = authRepository.getAuthState().getId() ?: "unknown"
                                     stravaAuthViewModel.initiateStravaAuth()
                                 } else {
                                     stravaAuthViewModel.disconnectStrava()
-                                    coroutineScope.launch {
+                                    scope.launch {
                                         snackbarHostState.showSnackbar("Strava disconnected")
                                     }
                                 }
@@ -466,14 +452,20 @@ fun ProfileScreen(
                         isExpanded = isSetGoalsExpanded,
                         onToggle = { isSetGoalsExpanded = !isSetGoalsExpanded }
                     ) {
-                        EditableField(label = "Weight Loss Goal (kg)", value = profileData.weightLossGoal?.toString() ?: "") {
-                            profileViewModel.profileData = profileData.copy(weightLossGoal = it.toDoubleOrNull())
-                        }
+                        EditableField(
+                            label = "Weight Loss Goal (kg)*",
+                            value = profileData.weightLossGoal?.toString() ?: "",
+                            onValueChange = { profileViewModel.profileData = profileData.copy(weightLossGoal = it.toDoubleOrNull()) },
+                            keyboardType = KeyboardType.Decimal,
+                            isNumeric = true,
+                            isMandatory = true
+                        )
                         DropdownField(
-                            label = "Weight Loss Strategy",
+                            label = "Weight Loss Strategy*",
                             value = profileData.weightLossStrategy ?: "",
                             options = listOf("", "Lean-(0.25 kg/week)", "Aggressive-(0.5 kg/week)", "Custom"),
-                            onValueChange = { profileViewModel.profileData = profileData.copy(weightLossStrategy = it) }
+                            onValueChange = { profileViewModel.profileData = profileData.copy(weightLossStrategy = it) },
+                            isMandatory = true
                         )
                         Text(
                             text = "Step Goal: ${profileData.stepGoal ?: "N/A"}",
@@ -493,50 +485,21 @@ fun ProfileScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Button(
                             onClick = {
-                                if (profileData.weightLossGoal != null && profileData.weightLossStrategy?.isNotEmpty() == true && profileData.tdee != null) {
+                                if (areGoalsValid && profileData.tdee != null) {
                                     profileViewModel.calculateMetrics()
                                     showStrategyPopup = true
+                                } else {
+                                    scope.launch {
+                                        snackbarHostState.showSnackbar("All fields are required")
+                                    }
                                 }
                             },
+                            enabled = areGoalsValid && profileData.tdee != null,
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Text("Save")
                         }
-                    }
-                }
-                item {
-                    ExpandableSection(
-                        title = "Progress Trends",
-                        isExpanded = isProgressTrendsExpanded,
-                        onToggle = { isProgressTrendsExpanded = !isProgressTrendsExpanded }
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                                .background(Color.LightGray),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Weight/Steps Trend Graph Placeholder",
-                                fontSize = 14.sp,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-                item {
-                    ExpandableSection(
-                        title = "Health Insights",
-                        isExpanded = isHealthInsightsExpanded,
-                        onToggle = { isHealthInsightsExpanded = !isHealthInsightsExpanded }
-                    ) {
-                        Text(
-                            text = "Aim for 8h sleep to improve recovery!",
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
                     }
                 }
                 item {
@@ -631,6 +594,38 @@ fun ProfileScreen(
                     }
                 )
             }
+
+            if (showDatePicker) {
+                DatePickerDialog(
+                    onDismissRequest = { showDatePicker = false },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                datePickerState.selectedDateMillis?.let { millis ->
+                                    val date = Instant.ofEpochMilli(millis)
+                                        .atZone(ZoneId.systemDefault())
+                                        .toLocalDate()
+                                    val formattedDate = date.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+                                    profileViewModel.profileData = profileData.copy(dob = formattedDate)
+                                }
+                                showDatePicker = false
+                            }
+                        ) {
+                            Text("OK")
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDatePicker = false }) {
+                            Text("Cancel")
+                        }
+                    }
+                ) {
+                    DatePicker(
+                        state = datePickerState,
+                        modifier = Modifier.padding(16.dp)
+                    )
+                }
+            }
         }
     }
 }
@@ -681,20 +676,37 @@ fun ExpandableSection(
 fun EditableField(
     label: String,
     value: String,
-    onValueChange: (String) -> Unit = {}
+    onValueChange: (String) -> Unit = {},
+    keyboardType: KeyboardType = KeyboardType.Text,
+    isNumeric: Boolean = false,
+    isMandatory: Boolean = false
 ) {
     var text by remember { mutableStateOf(value) }
     TextField(
         value = text,
-        onValueChange = {
-            text = it
-            onValueChange(it)
+        onValueChange = { newValue ->
+            if (isNumeric) {
+                if (newValue.matches(Regex(if (keyboardType == KeyboardType.Decimal) "^[0-9]*\\.?[0-9]*$" else "^[0-9]*$"))) {
+                    text = newValue
+                    onValueChange(newValue)
+                }
+            } else {
+                text = newValue
+                onValueChange(newValue)
+            }
         },
-        label = { Text(label) },
+        label = { Text(label + if (isMandatory) " *" else "") },
         modifier = Modifier.fillMaxWidth(),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         colors = TextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.surface,
-            unfocusedContainerColor = MaterialTheme.colorScheme.surface
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
         )
     )
 }
@@ -704,7 +716,8 @@ fun DropdownField(
     label: String,
     value: String,
     options: List<String>,
-    onValueChange: (String) -> Unit
+    onValueChange: (String) -> Unit,
+    isMandatory: Boolean = false
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -712,7 +725,7 @@ fun DropdownField(
             value = value,
             onValueChange = {},
             readOnly = true,
-            label = { Text(label) },
+            label = { Text(label + if (isMandatory) " *" else "") },
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { expanded = true },
@@ -720,22 +733,31 @@ fun DropdownField(
                 Icon(
                     imageVector = Icons.Default.ArrowDropDown,
                     contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.clickable { expanded = true }
                 )
             },
             colors = TextFieldDefaults.colors(
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+                unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
             )
         )
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option) },
+                    text = { Text(option, color = MaterialTheme.colorScheme.onSurface) },
                     onClick = {
                         onValueChange(option)
                         expanded = false
@@ -744,6 +766,46 @@ fun DropdownField(
             }
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DatePickerField(
+    label: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    showDatePicker: Boolean,
+    onShowDatePicker: () -> Unit,
+    onDismissDatePicker: () -> Unit,
+    datePickerState: DatePickerState
+) {
+    TextField(
+        value = value,
+        onValueChange = {},
+        readOnly = true,
+        label = { Text(label) },
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onShowDatePicker() },
+        trailingIcon = {
+            Icon(
+                imageVector = Icons.Default.CalendarToday,
+                contentDescription = "Select Date",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.clickable { onShowDatePicker() }
+            )
+        },
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+            unfocusedIndicatorColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+            focusedLabelColor = MaterialTheme.colorScheme.primary,
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+        )
+    )
 }
 
 @Composable
@@ -769,7 +831,13 @@ fun FitnessBridgeToggle(
         Switch(
             checked = isEnabled,
             onCheckedChange = onToggle,
-            enabled = enabled
+            enabled = enabled,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.primary,
+                checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                uncheckedTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+            )
         )
     }
 }
